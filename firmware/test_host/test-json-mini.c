@@ -61,6 +61,23 @@ void test_get_uint_rejects_overflow(void) {
     TEST_ASSERT_EQUAL_UINT32(4294967295u, v);
 }
 
+void test_get_string_unescapes_quote_and_backslash(void) {
+    char out[64];
+    TEST_ASSERT_TRUE(json_mini_get_string("{\"password\":\"a\\\"b\\\\c\"}", "password", out, sizeof out));
+    TEST_ASSERT_EQUAL_STRING("a\"b\\c", out);
+}
+
+void test_get_string_rejects_unknown_escape(void) {
+    char out[64];
+    TEST_ASSERT_FALSE(json_mini_get_string("{\"password\":\"a\\nb\"}", "password", out, sizeof out));
+}
+
+void test_get_string_keeps_utf8_bytes(void) {
+    char out[64];
+    TEST_ASSERT_TRUE(json_mini_get_string("{\"ssid\":\"우리집\"}", "ssid", out, sizeof out));
+    TEST_ASSERT_EQUAL_STRING("우리집", out);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_get_string);
@@ -72,5 +89,8 @@ int main(void) {
     RUN_TEST(test_key_must_be_quoted_exactly);
     RUN_TEST(test_key_inside_earlier_value_is_skipped);
     RUN_TEST(test_get_uint_rejects_overflow);
+    RUN_TEST(test_get_string_unescapes_quote_and_backslash);
+    RUN_TEST(test_get_string_rejects_unknown_escape);
+    RUN_TEST(test_get_string_keeps_utf8_bytes);
     return UNITY_END();
 }

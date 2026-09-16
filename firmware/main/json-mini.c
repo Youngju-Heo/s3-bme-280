@@ -29,11 +29,18 @@ bool json_mini_get_string(const char *json, const char *key, char *out, size_t o
     const char *p = find_value(json, key);
     if (!p || *p != '"') return false;
     p++;
-    const char *end = strchr(p, '"');
-    if (!end) return false;
-    size_t n = (size_t)(end - p);
-    if (n >= out_len) return false;
-    memcpy(out, p, n);
+    size_t n = 0;
+    for (;;) {
+        char c = *p++;
+        if (c == '\0') return false;          // unterminated
+        if (c == '"') break;
+        if (c == '\\') {
+            c = *p++;
+            if (c != '"' && c != '\\') return false;   // only \" and \\ are supported
+        }
+        if (n + 1 >= out_len) return false;
+        out[n++] = c;
+    }
     out[n] = '\0';
     return true;
 }
