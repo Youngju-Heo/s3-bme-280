@@ -13,7 +13,7 @@
 | 항목 | 결정 | 근거 |
 |---|---|---|
 | 웹 내용 | 현재값 + 이력 그래프(1시간/1일/1주) + 장치 상태 | 사용자 선택 |
-| WiFi 설정 | USB CLI `bme280-tool wifi <SSID> <PASSWORD>` → 시리얼 `set_wifi` → NVS | "wifi 설정을 통해서". 한글 SSID/비밀번호 허용(UTF-8 바이트 그대로, 규격 상한 32/63B) |
+| WiFi 설정 | USB CLI(Go `bme280-tool`) `wifi <SSID> <PASSWORD>` → 시리얼 `set_wifi` → NVS | "wifi 설정을 통해서". 한글 SSID/비밀번호 허용(UTF-8 바이트 그대로, 규격 상한 32/63B) |
 | 접속 주소 | IP 직접 입력. `status`에 IP 표시 | mDNS는 IDF 외부 컴포넌트라 의존 회피 |
 | 시간 | WiFi 연결 시 SNTP(`pool.ntp.org`) 자동 동기화. NTP 미동기 시 웹에서 수동 설정 2모드 | 배터리 RTC 없음 문제를 PC 없이 해결 |
 | 웹 조작 범위 | 읽기 전용 + `set_time`만 허용. 삭제·주기·WiFi 설정은 USB CLI 전용 | LAN 평문 HTTP, 인증 없음 |
@@ -99,14 +99,17 @@ app_main 초기화 순서: settings → SPI/센서 → log_store → sampler →
   1. "이 컴퓨터 시각으로 설정" 버튼 → `Math.floor(Date.now()/1000)`
   2. `<input type="datetime-local">` + "적용" 버튼 → 입력값을 브라우저 로컬 시간대로 해석해 epoch 변환
   두 경우 모두 `POST /api?cmd=set_time&epoch=N`. 성공 시 상태 줄 즉시 갱신.
-- 모든 문구 한국어. vanilla JS.
+- 모든 문구 한국어(웹 페이지는 UI이므로 한국어 규칙 적용). vanilla JS.
 
 ## PC CLI
 
-- `bme280-tool wifi <SSID> <PASSWORD>` → `set_wifi` → `WiFi 설정을 저장했습니다. 접속 상태는 status로 확인하세요`.
-- `bme280-tool wifi --clear` → `set_wifi` with `ssid=""` → `WiFi 설정을 해제했습니다`.
-- `bme280-tool status` 출력에 `WiFi: 연결됨 (192.168.0.23)` / `접속 중` / `접속 실패` / `미설정`, `시간 출처: NTP / PC / 없음` 추가.
-- `client.request`는 `json.dumps(..., ensure_ascii=False)`로 전송(한글 그대로). `"`·`\`는 `json.dumps`가 이스케이프하고 장치 파서가 해석.
+Go CLI(`pc/internal/cli`)에 추가. 콘솔 출력은 영어(콘솔 도구 규칙).
+
+- `bme280-tool wifi <SSID> <PASSWORD>` → `set_wifi` → `WiFi credentials saved. Run 'status' to check the connection.`
+- `bme280-tool wifi --clear` → `set_wifi` with `ssid=""` → `WiFi credentials cleared.`
+- `bme280-tool status` 출력에 `WiFi: connected (192.168.0.23)` / `connecting` / `failed` / `off`, `Time source: ntp | pc | none` 추가.
+- 인자 검증(SSID 1~32B, 비밀번호 0 또는 8~63B, UTF-8 바이트 기준)은 포트 접속 전에 수행, 위반 시 종료 코드 2.
+- `client.Request`는 `encoding/json`으로 전송 — 한글은 그대로, `"`·`\`만 이스케이프되며 장치 파서(`json-mini`)가 이를 해석한다.
 
 ## 설정·빌드
 
@@ -117,7 +120,7 @@ app_main 초기화 순서: settings → SPI/센서 → log_store → sampler →
 ## 테스트
 
 - 호스트(gcc+Unity): `json-mini` 이스케이프; `protocol` `set_wifi` 검증·`get_status` 확장 문자열; `web-bridge` 변환·화이트리스트·잘못된 값; `status-led-color` 파랑 깜빡임.
-- pytest: `wifi` 명령 전송 내용(한글 `ensure_ascii=False`), `--clear`, `status` 출력.
+- Go 테스트(`internal/cli`, `internal/client`): `wifi` 명령이 보내는 JSON(한글 SSID 그대로, `"`/`\` 이스케이프), `--clear`, 길이 검증 종료 코드 2, `status` 출력의 WiFi/Time source 줄.
 - 실기(수동): `bme280-tool wifi` → `status`에 IP → 브라우저 접속 → 현재값·그래프 3기간 → 시간 설정 2모드(NTP 상태에서는 섹션 숨김 확인은 WiFi 해제 후) → 공유기 전원 차단 시 LED 파랑 깜빡임 → 복구 시 재접속.
 
 ## 네이밍
