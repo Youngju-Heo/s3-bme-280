@@ -12,6 +12,8 @@
 #include "sampler.h"
 #include "settings.h"
 #include "spi-bus.h"
+#include "status-led.h"
+#include "esp_timer.h"
 
 static const char *TAG = "app";
 
@@ -111,6 +113,9 @@ void app_main(void)
     // terminate any stale boot-log fragment left in the USB FIFO so the host sees it as its own line
     usb_write(NULL, "\n", 1);
 
+    err = status_led_init();
+    if (err != ESP_OK) ESP_LOGE(TAG, "status LED init failed: %s", esp_err_to_name(err));
+
     static char line[PROTOCOL_MAX_LINE];
     size_t len = 0;
     bool overflow = false;
@@ -133,5 +138,9 @@ void app_main(void)
             }
         }
         sampler_tick(clock_uptime_s(), clock_timestamp(), clock_time_valid(), settings_boot_id());
+
+        status_led_state_t led = STATUS_LED_ERROR;
+        if (sampler_sensor_ok() && sampler_store_ok()) led = clock_time_valid() ? STATUS_LED_OK : STATUS_LED_OK_NO_TIME;
+        status_led_update(led, (uint32_t)(esp_timer_get_time() / 1000));
     }
 }

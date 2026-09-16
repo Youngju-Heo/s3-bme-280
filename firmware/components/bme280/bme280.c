@@ -31,6 +31,12 @@ int bme280_init(bme280_t *dev, const bme280_bus_t *bus)
 
 int bme280_read(bme280_t *dev, bme280_reading_t *out)
 {
+    // A disconnected sensor leaves MISO floating (0x00/0xFF); the chip id check turns that into an error
+    // instead of a garbage reading.
+    uint8_t id = 0;
+    if (dev->bus.read_regs(dev->bus.ctx, BME280_REG_CHIP_ID, &id, 1)) return BME280_ERR_BUS;
+    if (id != BME280_CHIP_ID) return BME280_ERR_CHIP_ID;
+
     if (dev->bus.write_reg(dev->bus.ctx, BME280_REG_CTRL_MEAS, CTRL_MEAS_FORCED)) return BME280_ERR_BUS;
     dev->bus.delay_ms(dev->bus.ctx, MEASURE_POLL_MS);   // wait for the measurement to complete before the first status poll
 

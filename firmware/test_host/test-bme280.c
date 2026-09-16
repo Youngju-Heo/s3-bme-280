@@ -66,6 +66,14 @@ void test_read_times_out_when_measuring_never_clears(void) {
     TEST_ASSERT_EQUAL(BME280_ERR_TIMEOUT, bme280_read(&dev, &r));
 }
 
+void test_read_fails_when_sensor_disconnected(void) {
+    load_example_calib();
+    TEST_ASSERT_EQUAL(BME280_OK, bme280_init(&dev, &fake_bus));
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0xFF;   // floating MISO after the wire is pulled
+    bme280_reading_t r;
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, bme280_read(&dev, &r));
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_init_rejects_wrong_chip_id);
@@ -73,5 +81,6 @@ int main(void) {
     RUN_TEST(test_init_resets_reads_calib_and_configures);
     RUN_TEST(test_read_triggers_forced_mode_and_compensates);
     RUN_TEST(test_read_times_out_when_measuring_never_clears);
+    RUN_TEST(test_read_fails_when_sensor_disconnected);
     return UNITY_END();
 }
