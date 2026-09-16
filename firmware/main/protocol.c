@@ -54,9 +54,10 @@ static void cmd_read_now(writer_t *w)
 
 static void cmd_get_status(writer_t *w)
 {
-    emit(w, "{\"ok\":true,\"count\":%lu,\"capacity\":%lu,\"interval_s\":%lu,\"sensor_ok\":%s,\"time_valid\":%s,\"boot_id\":%u,\"uptime_s\":%lu}\n",
+    emit(w, "{\"ok\":true,\"count\":%lu,\"capacity\":%lu,\"interval_s\":%lu,\"sensor_ok\":%s,\"store_ok\":%s,\"time_valid\":%s,\"boot_id\":%u,\"uptime_s\":%lu}\n",
          (unsigned long)log_store_count(g_ops->store), (unsigned long)LOG_STORE_CAPACITY,
          (unsigned long)g_ops->interval_s(g_ops->ctx), g_ops->sensor_ok(g_ops->ctx) ? "true" : "false",
+         g_ops->store_ok(g_ops->ctx) ? "true" : "false",
          g_ops->time_valid(g_ops->ctx) ? "true" : "false", g_ops->boot_id(g_ops->ctx),
          (unsigned long)g_ops->uptime_s(g_ops->ctx));
 }

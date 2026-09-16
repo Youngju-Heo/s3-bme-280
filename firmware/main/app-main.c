@@ -45,6 +45,7 @@ static int op_read_now(void *c, bme280_reading_t *out)
     return bme280_read(g_sensor_ptr, out) == BME280_OK ? 0 : -1;
 }
 static bool op_sensor_ok(void *c) { (void)c; return sampler_sensor_ok(); }
+static bool op_store_ok(void *c) { (void)c; return sampler_store_ok(); }
 static uint32_t op_interval_s(void *c) { (void)c; return settings_interval_s(); }
 static int op_set_interval_s(void *c, uint32_t s)
 {
@@ -56,7 +57,7 @@ static int op_set_interval_s(void *c, uint32_t s)
 
 static const protocol_ops_t g_ops = {
     .ctx = NULL, .store = &g_store, .boot_id = op_boot_id, .uptime_s = op_uptime_s, .time_valid = op_time_valid,
-    .set_time = op_set_time, .read_now = op_read_now, .sensor_ok = op_sensor_ok,
+    .set_time = op_set_time, .read_now = op_read_now, .sensor_ok = op_sensor_ok, .store_ok = op_store_ok,
     .interval_s = op_interval_s, .set_interval_s = op_set_interval_s,
 };
 

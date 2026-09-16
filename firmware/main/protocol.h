@@ -21,6 +21,7 @@ typedef struct {
     void (*set_time)(void *ctx, uint32_t epoch);
     int (*read_now)(void *ctx, bme280_reading_t *out);
     bool (*sensor_ok)(void *ctx);
+    bool (*store_ok)(void *ctx);
     uint32_t (*interval_s)(void *ctx);
     int (*set_interval_s)(void *ctx, uint32_t s);
 } protocol_ops_t;

@@ -99,7 +99,7 @@ docs/feature/2026-09/
 | `{"cmd":"ping"}` | `{"ok":true,"firmware":"0.1.0","boot_id":3,"uptime_s":120,"time_valid":false}` |
 | `{"cmd":"set_time","epoch":1789000000}` | `{"ok":true,"boot_id":3,"uptime_s":121}` |
 | `{"cmd":"read_now"}` | `{"ok":true,"temp_c":23.45,"hum_pct":41.2,"pressure_pa":101325}` (즉시 측정, 저장 안 함) |
-| `{"cmd":"get_status"}` | `{"ok":true,"count":1234,"capacity":32512,"interval_s":60,"sensor_ok":true,"time_valid":true,"boot_id":3,"uptime_s":121}` |
+| `{"cmd":"get_status"}` | `{"ok":true,"count":1234,"capacity":32512,"interval_s":60,"sensor_ok":true,"store_ok":true,"time_valid":true,"boot_id":3,"uptime_s":121}` |
 | `{"cmd":"get_log","offset":0,"limit":500}` | `{"ok":true,"total":1234,"offset":0,"records":[[timestamp,temp_centi,hum_centi,pressure_pa,flags,boot_id],...]}` |
 | `{"cmd":"clear_log"}` | `{"ok":true}` |
 | `{"cmd":"set_interval","interval_s":60}` | `{"ok":true}` (10~3600 범위 밖이면 오류) |

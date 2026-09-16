@@ -40,12 +40,13 @@ def test_now_prints_reading(capsys):
 
 
 def test_status_prints_fields(capsys):
-    factory, _ = make_factory(['{"ok":true,"count":1234,"capacity":32512,"interval_s":60,"sensor_ok":true,"time_valid":true,"boot_id":3,"uptime_s":121}'])
+    factory, _ = make_factory(['{"ok":true,"count":1234,"capacity":32512,"interval_s":60,"sensor_ok":true,"store_ok":true,"time_valid":true,"boot_id":3,"uptime_s":121}'])
     main(["--port", "COM9", "status"], client_factory=factory)
     out = capsys.readouterr().out
     assert "1234 / 32512" in out
     assert "60초" in out
     assert "정상" in out
+    assert "저장소 상태: 정상" in out
 
 
 def test_log_table_newest_first(capsys):

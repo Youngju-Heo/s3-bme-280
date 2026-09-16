@@ -34,6 +34,7 @@ def cmd_status(client: DeviceClient, sync: SyncInfo, args) -> int:
     print(f"저장 레코드: {s['count']} / {s['capacity']}")
     print(f"측정 주기: {s['interval_s']}초")
     print(f"센서 상태: {'정상' if s['sensor_ok'] else '오류'}")
+    print(f"저장소 상태: {'정상' if s.get('store_ok', True) else '오류'}")
     print(f"시간 동기화: {'완료' if s['time_valid'] else '미완료'}")
     print(f"부팅 세대: {s['boot_id']}, 가동 시간: {_hms(s['uptime_s'])}")
     return 0

@@ -10,7 +10,7 @@ static size_t out_len;
 
 static struct {
     uint8_t boot_id; uint32_t uptime_s; bool time_valid; uint32_t set_epoch;
-    int read_rc; bme280_reading_t reading; bool sensor_ok; uint32_t interval_s;
+    int read_rc; bme280_reading_t reading; bool sensor_ok; bool store_ok; uint32_t interval_s;
 } fake;
 
 static uint8_t f_boot_id(void *c) { (void)c; return fake.boot_id; }
@@ -19,12 +19,13 @@ static bool f_time_valid(void *c) { (void)c; return fake.time_valid; }
 static void f_set_time(void *c, uint32_t e) { (void)c; fake.set_epoch = e; fake.time_valid = true; }
 static int f_read_now(void *c, bme280_reading_t *r) { (void)c; *r = fake.reading; return fake.read_rc; }
 static bool f_sensor_ok(void *c) { (void)c; return fake.sensor_ok; }
+static bool f_store_ok(void *c) { (void)c; return fake.store_ok; }
 static uint32_t f_interval_s(void *c) { (void)c; return fake.interval_s; }
 static int f_set_interval_s(void *c, uint32_t s) { (void)c; if (s < 10 || s > 3600) return -1; fake.interval_s = s; return 0; }
 
 static const protocol_ops_t ops = {
     .ctx = NULL, .store = &store, .boot_id = f_boot_id, .uptime_s = f_uptime_s, .time_valid = f_time_valid,
-    .set_time = f_set_time, .read_now = f_read_now, .sensor_ok = f_sensor_ok,
+    .set_time = f_set_time, .read_now = f_read_now, .sensor_ok = f_sensor_ok, .store_ok = f_store_ok,
     .interval_s = f_interval_s, .set_interval_s = f_set_interval_s,
 };
 
@@ -41,7 +42,7 @@ void setUp(void)
     fake_flash_reset();
     log_store_init(&store, &fake_flash);
     memset(&fake, 0, sizeof fake);
-    fake.boot_id = 3; fake.uptime_s = 120; fake.sensor_ok = true; fake.interval_s = 60;
+    fake.boot_id = 3; fake.uptime_s = 120; fake.sensor_ok = true; fake.store_ok = true; fake.interval_s = 60;
     fake.reading = (bme280_reading_t){ .temp_centi = 2345, .pressure_pa = 101325, .hum_centi = 4120 };
     protocol_init(&ops);
 }
@@ -75,7 +76,7 @@ void test_get_status(void) {
     log_record_t r = { .timestamp = 1, .boot_id = 3 };
     log_store_append(&store, &r);
     TEST_ASSERT_EQUAL_STRING(
-        "{\"ok\":true,\"count\":1,\"capacity\":32512,\"interval_s\":60,\"sensor_ok\":true,\"time_valid\":false,\"boot_id\":3,\"uptime_s\":120}\n",
+        "{\"ok\":true,\"count\":1,\"capacity\":32512,\"interval_s\":60,\"sensor_ok\":true,\"store_ok\":true,\"time_valid\":false,\"boot_id\":3,\"uptime_s\":120}\n",
         handle("{\"cmd\":\"get_status\"}"));
 }
 

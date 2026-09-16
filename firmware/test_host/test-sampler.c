@@ -92,6 +92,18 @@ void test_no_sensor(void) {
     TEST_ASSERT_FALSE(sampler_sensor_ok());
 }
 
+void test_store_failure_flags_store_not_ok(void) {
+    TEST_ASSERT_TRUE(sampler_store_ok());
+    fake_flash_fail_write = true;
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_EQUAL_UINT32(0, log_store_count(&store));
+    TEST_ASSERT_FALSE(sampler_store_ok());
+    fake_flash_fail_write = false;
+    sampler_tick(60, 60, false, 1);
+    TEST_ASSERT_EQUAL_UINT32(1, log_store_count(&store));
+    TEST_ASSERT_TRUE(sampler_store_ok());
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_first_tick_samples_immediately);
@@ -100,5 +112,6 @@ int main(void) {
     RUN_TEST(test_set_interval_applies_from_last_sample);
     RUN_TEST(test_sensor_error_skips_record_and_flags);
     RUN_TEST(test_no_sensor);
+    RUN_TEST(test_store_failure_flags_store_not_ok);
     return UNITY_END();
 }
