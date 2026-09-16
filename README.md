@@ -47,4 +47,4 @@ bme280-tool interval [SECONDS]
 
 ## 프로토콜
 
-USB Serial/JTAG 위 줄 단위 JSON. 예: `{"cmd":"get_log","offset":0,"limit":500}` → `{"ok":true,"total":N,"offset":0,"records":[[timestamp,temp_centi,hum_centi,pressure_pa,flags,boot_id],...]}`. 명령: `ping`, `set_time`, `read_now`, `get_status`, `get_log`, `clear_log`, `set_interval`. 상세는 `docs/feature/2026-09/2026-09-16-01-bme280-logger-design.md`.
+USB Serial/JTAG 위 줄 단위 JSON. 포트 설정, 명령별 요청/응답 형식, 레코드 필드, 시각 해석 규칙, 타임아웃 권장값은 [docs/protocol.md](docs/protocol.md)를 참조한다.
