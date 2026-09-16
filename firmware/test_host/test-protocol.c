@@ -11,6 +11,7 @@ static size_t out_len;
 static struct {
     uint8_t boot_id; uint32_t uptime_s; bool time_valid; uint32_t set_epoch;
     int read_rc; bme280_reading_t reading; bool sensor_ok; bool store_ok; uint32_t interval_s;
+    char wifi_ssid[33]; char wifi_pass[64]; int set_wifi_rc; const char *wifi_state; const char *wifi_ip; const char *time_source;
 } fake;
 
 static uint8_t f_boot_id(void *c) { (void)c; return fake.boot_id; }
@@ -22,11 +23,21 @@ static bool f_sensor_ok(void *c) { (void)c; return fake.sensor_ok; }
 static bool f_store_ok(void *c) { (void)c; return fake.store_ok; }
 static uint32_t f_interval_s(void *c) { (void)c; return fake.interval_s; }
 static int f_set_interval_s(void *c, uint32_t s) { (void)c; if (s < 10 || s > 3600) return -1; fake.interval_s = s; return 0; }
+static int f_set_wifi(void *c, const char *ssid, const char *password)
+{
+    (void)c;
+    if (fake.set_wifi_rc == 0) { strncpy(fake.wifi_ssid, ssid, 32); fake.wifi_ssid[32] = 0; strncpy(fake.wifi_pass, password, 63); fake.wifi_pass[63] = 0; }
+    return fake.set_wifi_rc;
+}
+static const char *f_wifi_state(void *c) { (void)c; return fake.wifi_state; }
+static void f_wifi_ip(void *c, char *buf, size_t len) { (void)c; snprintf(buf, len, "%s", fake.wifi_ip); }
+static const char *f_time_source(void *c) { (void)c; return fake.time_source; }
 
 static const protocol_ops_t ops = {
     .ctx = NULL, .store = &store, .boot_id = f_boot_id, .uptime_s = f_uptime_s, .time_valid = f_time_valid,
     .set_time = f_set_time, .read_now = f_read_now, .sensor_ok = f_sensor_ok, .store_ok = f_store_ok,
     .interval_s = f_interval_s, .set_interval_s = f_set_interval_s,
+    .set_wifi = f_set_wifi, .wifi_state = f_wifi_state, .wifi_ip = f_wifi_ip, .time_source = f_time_source,
 };
 
 static void capture(void *ctx, const char *data, size_t len)
@@ -44,6 +55,7 @@ void setUp(void)
     memset(&fake, 0, sizeof fake);
     fake.boot_id = 3; fake.uptime_s = 120; fake.sensor_ok = true; fake.store_ok = true; fake.interval_s = 60;
     fake.reading = (bme280_reading_t){ .temp_centi = 2345, .pressure_pa = 101325, .hum_centi = 4120 };
+    fake.wifi_state = "off"; fake.wifi_ip = ""; fake.time_source = "none";
     protocol_init(&ops);
 }
 void tearDown(void) {}
@@ -76,8 +88,35 @@ void test_get_status(void) {
     log_record_t r = { .timestamp = 1, .boot_id = 3 };
     log_store_append(&store, &r);
     TEST_ASSERT_EQUAL_STRING(
-        "{\"ok\":true,\"count\":1,\"capacity\":32512,\"interval_s\":60,\"sensor_ok\":true,\"store_ok\":true,\"time_valid\":false,\"boot_id\":3,\"uptime_s\":120}\n",
+        "{\"ok\":true,\"count\":1,\"capacity\":32512,\"interval_s\":60,\"sensor_ok\":true,\"store_ok\":true,\"time_valid\":false,\"boot_id\":3,\"uptime_s\":120,\"wifi_state\":\"off\",\"ip\":\"\",\"time_source\":\"none\"}\n",
         handle("{\"cmd\":\"get_status\"}"));
+}
+
+void test_get_status_reports_wifi_and_time_source(void) {
+    fake.wifi_state = "connected"; fake.wifi_ip = "192.168.0.23"; fake.time_source = "ntp";
+    const char *out = handle("{\"cmd\":\"get_status\"}");
+    TEST_ASSERT_NOT_NULL(strstr(out, "\"wifi_state\":\"connected\",\"ip\":\"192.168.0.23\",\"time_source\":\"ntp\"}\n"));
+}
+
+void test_set_wifi_saves_credentials(void) {
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}\n", handle("{\"cmd\":\"set_wifi\",\"ssid\":\"우리집\",\"password\":\"pw12345678\"}"));
+    TEST_ASSERT_EQUAL_STRING("우리집", fake.wifi_ssid);
+    TEST_ASSERT_EQUAL_STRING("pw12345678", fake.wifi_pass);
+}
+
+void test_set_wifi_clear_with_empty_ssid(void) {
+    fake.wifi_ssid[0] = 'x';
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}\n", handle("{\"cmd\":\"set_wifi\",\"ssid\":\"\"}"));
+    TEST_ASSERT_EQUAL_STRING("", fake.wifi_ssid);
+}
+
+void test_set_wifi_validates_lengths(void) {
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"bad_request\"}\n", handle("{\"cmd\":\"set_wifi\",\"password\":\"pw12345678\"}"));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"out_of_range\"}\n", handle("{\"cmd\":\"set_wifi\",\"ssid\":\"abcdefghijklmnopqrstuvwxyz0123456789\",\"password\":\"pw12345678\"}"));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"out_of_range\"}\n", handle("{\"cmd\":\"set_wifi\",\"ssid\":\"home\",\"password\":\"short\"}"));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}\n", handle("{\"cmd\":\"set_wifi\",\"ssid\":\"home\",\"password\":\"\"}"));   // open network
+    fake.set_wifi_rc = -2;
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"store_error\"}\n", handle("{\"cmd\":\"set_wifi\",\"ssid\":\"home\",\"password\":\"pw12345678\"}"));
 }
 
 void test_get_log_pages(void) {
@@ -129,6 +168,10 @@ int main(void) {
     RUN_TEST(test_set_time);
     RUN_TEST(test_read_now_formats_decimals);
     RUN_TEST(test_get_status);
+    RUN_TEST(test_get_status_reports_wifi_and_time_source);
+    RUN_TEST(test_set_wifi_saves_credentials);
+    RUN_TEST(test_set_wifi_clear_with_empty_ssid);
+    RUN_TEST(test_set_wifi_validates_lengths);
     RUN_TEST(test_get_log_pages);
     RUN_TEST(test_get_log_defaults_and_clamps_limit);
     RUN_TEST(test_clear_log);

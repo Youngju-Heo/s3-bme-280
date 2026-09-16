@@ -54,12 +54,36 @@ static void cmd_read_now(writer_t *w)
 
 static void cmd_get_status(writer_t *w)
 {
-    emit(w, "{\"ok\":true,\"count\":%lu,\"capacity\":%lu,\"interval_s\":%lu,\"sensor_ok\":%s,\"store_ok\":%s,\"time_valid\":%s,\"boot_id\":%u,\"uptime_s\":%lu}\n",
+    char ip[16] = "";
+    g_ops->wifi_ip(g_ops->ctx, ip, sizeof ip);
+    emit(w, "{\"ok\":true,\"count\":%lu,\"capacity\":%lu,\"interval_s\":%lu,\"sensor_ok\":%s,\"store_ok\":%s,\"time_valid\":%s,\"boot_id\":%u,\"uptime_s\":%lu,",
          (unsigned long)log_store_count(g_ops->store), (unsigned long)LOG_STORE_CAPACITY,
          (unsigned long)g_ops->interval_s(g_ops->ctx), g_ops->sensor_ok(g_ops->ctx) ? "true" : "false",
          g_ops->store_ok(g_ops->ctx) ? "true" : "false",
          g_ops->time_valid(g_ops->ctx) ? "true" : "false", g_ops->boot_id(g_ops->ctx),
          (unsigned long)g_ops->uptime_s(g_ops->ctx));
+    emit(w, "\"wifi_state\":\"%s\",\"ip\":\"%s\",\"time_source\":\"%s\"}\n",
+         g_ops->wifi_state(g_ops->ctx), ip, g_ops->time_source(g_ops->ctx));
+}
+
+static void cmd_set_wifi(writer_t *w, const char *line)
+{
+    char ssid[PROTOCOL_WIFI_SSID_MAX + 1];
+    char password[PROTOCOL_WIFI_PASS_MAX + 1] = "";
+    char big[128];
+    if (!json_mini_get_string(line, "ssid", big, sizeof big)) { reply_error(w, "bad_request"); return; }
+    size_t ssid_len = strlen(big);
+    if (ssid_len > PROTOCOL_WIFI_SSID_MAX) { reply_error(w, "out_of_range"); return; }
+    memcpy(ssid, big, ssid_len + 1);
+    if (json_mini_get_string(line, "password", big, sizeof big)) {
+        size_t pass_len = strlen(big);
+        if (pass_len != 0 && (pass_len < 8 || pass_len > PROTOCOL_WIFI_PASS_MAX)) { reply_error(w, "out_of_range"); return; }
+        memcpy(password, big, pass_len + 1);
+    }
+    int rc = g_ops->set_wifi(g_ops->ctx, ssid, password);
+    if (rc == -1) { reply_error(w, "out_of_range"); return; }
+    if (rc != 0) { reply_error(w, "store_error"); return; }
+    emit(w, "{\"ok\":true}\n");
 }
 
 static void cmd_get_log(writer_t *w, const char *line)
@@ -116,5 +140,6 @@ void protocol_handle_line(const char *line, protocol_write_fn write, void *wctx)
     else if (strcmp(cmd, "get_log") == 0) cmd_get_log(&w, line);
     else if (strcmp(cmd, "clear_log") == 0) cmd_clear_log(&w);
     else if (strcmp(cmd, "set_interval") == 0) cmd_set_interval(&w, line);
+    else if (strcmp(cmd, "set_wifi") == 0) cmd_set_wifi(&w, line);
     else reply_error(&w, "unknown_cmd");
 }
