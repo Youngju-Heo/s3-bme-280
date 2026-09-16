@@ -5,6 +5,8 @@
 #define NS "bme"
 #define KEY_INTERVAL "interval_s"
 #define KEY_BOOT_ID "boot_id"
+#define KEY_WIFI_SSID "wifi_ssid"
+#define KEY_WIFI_PASS "wifi_pass"
 
 static nvs_handle_t g_nvs;
 static uint32_t g_interval_s = SETTINGS_INTERVAL_DEFAULT;
@@ -40,3 +42,29 @@ esp_err_t settings_set_interval_s(uint32_t s)
 }
 
 uint8_t settings_boot_id(void) { return g_boot_id; }
+
+bool settings_wifi_credentials(char *ssid, size_t ssid_len, char *password, size_t pass_len)
+{
+    size_t n = ssid_len;
+    if (nvs_get_str(g_nvs, KEY_WIFI_SSID, ssid, &n) != ESP_OK || ssid[0] == '\0') return false;
+    n = pass_len;
+    if (nvs_get_str(g_nvs, KEY_WIFI_PASS, password, &n) != ESP_OK) password[0] = '\0';
+    return true;
+}
+
+esp_err_t settings_set_wifi_credentials(const char *ssid, const char *password)
+{
+    esp_err_t err;
+    if (ssid[0] == '\0') {
+        err = nvs_erase_key(g_nvs, KEY_WIFI_SSID);
+        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return err;
+        err = nvs_erase_key(g_nvs, KEY_WIFI_PASS);
+        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return err;
+    } else {
+        err = nvs_set_str(g_nvs, KEY_WIFI_SSID, ssid);
+        if (err != ESP_OK) return err;
+        err = nvs_set_str(g_nvs, KEY_WIFI_PASS, password);
+        if (err != ESP_OK) return err;
+    }
+    return nvs_commit(g_nvs);
+}
