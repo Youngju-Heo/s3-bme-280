@@ -41,10 +41,12 @@ static void start_sntp_once(void)
     else ESP_LOGE(TAG, "SNTP init failed");
 }
 
+static void schedule_retry(void);
+
 static void retry_timer_cb(void *arg)
 {
     (void)arg;
-    if (g_want_connect && g_state != WIFI_CONNECTED) esp_wifi_connect();
+    if (g_want_connect && g_state != WIFI_CONNECTED && esp_wifi_connect() != ESP_OK) schedule_retry();
 }
 
 static void schedule_retry(void)
@@ -61,7 +63,7 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
 {
     (void)arg; (void)base; (void)data;
     if (id == WIFI_EVENT_STA_START) {
-        if (g_want_connect) { g_state = WIFI_CONNECTING; esp_wifi_connect(); }
+        if (g_want_connect) { g_state = WIFI_CONNECTING; if (esp_wifi_connect() != ESP_OK) schedule_retry(); }
     } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
         g_ip[0] = '\0';
         if (!g_want_connect) {
@@ -109,6 +111,9 @@ esp_err_t wifi_init(void)
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&init);
     if (err != ESP_OK) return err;
+    // settings.c's NVS keys are the single source of truth for credentials;
+    // keep the driver's own copy in RAM only, so `wifi --clear` really forgets the network.
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_ip_event, NULL));
     esp_timer_create_args_t targs = { .callback = retry_timer_cb, .name = "wifi_retry" };
@@ -152,22 +157,35 @@ esp_err_t wifi_set_credentials(const char *ssid, const char *password)
 
     esp_timer_stop(g_retry_timer);
     err = apply_config(ssid, password);
-    if (err != ESP_OK) return err;
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "apply_config failed: %s", esp_err_to_name(err));
+        return ESP_OK;                      // credentials are saved; wifi_state() surfaces the problem
+    }
     g_retries = 0;
     g_want_connect = true;
     g_state = WIFI_CONNECTING;
     if (!g_started) {
         err = esp_wifi_start();             // STA_START event triggers esp_wifi_connect()
         g_started = err == ESP_OK;
-        return err;
+        if (err != ESP_OK) ESP_LOGW(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
+        return ESP_OK;
     }
     if (was_connected) {
         g_reconnect_now = true;
         esp_err_t e = esp_wifi_disconnect();
-        if (e != ESP_OK) g_reconnect_now = false;
-        return e;
+        if (e != ESP_OK) {
+            g_reconnect_now = false;
+            ESP_LOGW(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(e));
+            schedule_retry();
+        }
+        return ESP_OK;
     }
-    return esp_wifi_connect();
+    err = esp_wifi_connect();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+        schedule_retry();
+    }
+    return ESP_OK;
 }
 
 wifi_state_t wifi_state(void) { return g_state; }

@@ -66,6 +66,7 @@ esp_err_t web_start(const web_lock_t *lock)
     g_lock = *lock;
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;
+    cfg.lru_purge_enable = true;   // reclaim the least-recently-used socket when all 7 are held by vanished clients
     httpd_handle_t server = NULL;
     esp_err_t err = httpd_start(&server, &cfg);
     if (err != ESP_OK) return err;
