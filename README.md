@@ -36,14 +36,12 @@ cd pc
 pip install -e ".[dev]"
 pytest -q
 
-bme280-tool [--port COM9] [--sea-level 1013.25] status
+bme280-tool [--port COM9] status
 bme280-tool now
 bme280-tool log [--last N] [--since 2026-09-16T14:00] [--csv out.csv]
 bme280-tool clear [--yes]
 bme280-tool interval [SECONDS]
 ```
-
-`now`와 `log`는 기압으로 계산한 고도(m)를 함께 표시한다. `--sea-level`에 그날의 해면 기압(hPa)을 주면 실제 고도에 가까워지고, 기본값 1013.25로는 기압고도만 얻는다.
 
 시간은 CLI 접속 시마다 PC 시각으로 동기화된다. 동기화 전에 저장된 레코드는 같은 부팅 세대면 `~` 접두로 추정 시각을, 다른 세대면 `boot#N +HH:MM:SS`로 표시한다.
 
