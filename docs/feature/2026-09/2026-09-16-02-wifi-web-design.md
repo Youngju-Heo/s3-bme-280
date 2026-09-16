@@ -48,15 +48,17 @@ app_main 초기화 순서: settings → SPI/센서 → log_store → sampler →
 - `wifi_init()`: `esp_netif_init`, 기본 이벤트 루프, STA netif 생성. NVS에 `wifi_ssid`가 있으면 접속 시작, 없으면 `WIFI_OFF`.
 - `wifi_set_credentials(ssid, password)`: NVS(네임스페이스 `bme`, 키 `wifi_ssid`, `wifi_pass`) 저장 후 재접속. `ssid`가 빈 문자열이면 키 삭제 + 연결 해제 + `WIFI_OFF`.
 - `wifi_state()` → `WIFI_OFF | WIFI_CONNECTING | WIFI_CONNECTED | WIFI_FAILED`. `wifi_ip(char *buf, size_t len)` → 미연결 시 빈 문자열.
-- 이벤트 처리: 끊김/실패 시 재시도, 간격 1→2→4→…→60초(지수 백오프). 30초 이상 미연결이면 `WIFI_FAILED`(재시도는 계속). `IP_EVENT_STA_GOT_IP`에서 IP 저장, `WIFI_CONNECTED`, SNTP 시작. SNTP 동기 콜백에서 `clock_mark_valid(CLOCK_SOURCE_NTP)`.
+- 이벤트 처리: 끊김/실패 시 재시도, 간격 1→2→4→…→60초(지수 백오프). 연속 5회 재접속 실패(백오프 누적 ≈ 31초) 시 `WIFI_FAILED`(재시도는 계속). `IP_EVENT_STA_GOT_IP`에서 IP 저장, `WIFI_CONNECTED`, SNTP 시작. SNTP 동기 콜백에서 `clock_mark_valid(CLOCK_SOURCE_NTP)`.
+- 자격증명 변경(`wifi_set_credentials`) 시 이미 연결 중이었다면 `g_reconnect_now`로 표시해 다음 끊김 이벤트에서 백오프 없이 즉시 재접속한다.
 - 상태 값은 이벤트 태스크에서 갱신되므로 `volatile int`로 두고, IP 문자열은 짧아 별도 잠금 없이 복사(경합 시 최악이 한 번 잘못 표시).
 
 ### web (`web.c/.h`, IDF `esp_http_server`)
 
 - `web_start(const web_lock_t *lock)`: 포트 80. `web_lock_t { void *ctx; void (*lock)(void*); void (*unlock)(void*); }`는 app_main이 뮤텍스를 감싸 넘김.
 - `GET /` → 내장 `index.html` (`EMBED_FILES`, `text/html; charset=utf-8`).
-- `GET|POST /api` → `web_bridge_build_request(method, query, line, sizeof line)` → 실패면 403 → 성공이면 lock → `protocol_handle_line(line, http_chunk_write, req)` → unlock → 청크 종료. `Content-Type: application/json`.
-- `http_chunk_write`는 `httpd_resp_send_chunk`. 프로토콜 응답의 끝 `\n`은 그대로 전송(클라이언트는 JSON 파싱만 하면 됨).
+- `GET|POST /api` → `web_bridge_build_request(method, query, line, sizeof line)` → 실패면 403. 성공이면 lock → `protocol_handle_line(line, buffer_write, NULL)`로 응답을 24 KB 정적 버퍼(`RESPONSE_MAX`)에 구성 → unlock → 버퍼를 한 번에 전송(`httpd_resp_send`). 버퍼 초과 시 500 `{"ok":false,"error":"response_too_large"}`. `Content-Type: application/json`.
+- `RESPONSE_MAX`(24 KB)는 `get_log` 최대 500건(`PROTOCOL_MAX_LIMIT`)의 응답(약 22.6 KB)을 여유 있게 수용한다.
+- `httpd_config_t.lru_purge_enable = true`로 설정해, 연결이 끊긴 클라이언트가 소켓을 점유한 채 방치되면 가장 오래된 소켓을 회수한다.
 
 ### web-bridge (`web-bridge.c/.h`, 순수 C, 호스트 테스트)
 
@@ -89,13 +91,13 @@ app_main 초기화 순서: settings → SPI/센서 → log_store → sampler →
 
 ### 뮤텍스
 
-`app-main.c`의 `static SemaphoreHandle_t g_device_lock` (recursive 아님). 메인 루프: `protocol_handle_line` 호출과 `sampler_tick` 호출을 각각 감싼다. `web.c`에는 `web_lock_t`로 넘긴다. LED 갱신·시리얼 I/O는 잠금 밖.
+`app-main.c`의 `static SemaphoreHandle_t g_device_lock` (recursive 아님). 메인 루프: `protocol_handle_line` 호출과 `sampler_tick` 호출을 각각 감싼다. `web.c`에는 `web_lock_t`로 넘긴다. LED 갱신과 USB 읽기는 잠금 밖; 시리얼 응답 쓰기는 `protocol_handle_line` 안에서 잠금 하에 수행된다(호스트가 읽지 않으면 1초 타임아웃/청크).
 
 ## 웹 페이지 (`firmware/main/web/index.html`, 단일 파일, 외부 리소스 없음)
 
 - 상단: 온도·습도·기압 현재값(큰 글씨). 상태 줄: 레코드 수/용량, 주기, 센서·저장소 상태, 시간 출처, IP, 가동 시간. 10초마다 `read_now` + `get_status` 갱신.
 - 그래프: `<canvas>` 3개(온도/습도/기압), 기간 버튼 **1시간 / 1일 / 1주**. `get_status.count`와 주기로 시작 offset 계산 → `get_log` 500건씩 순차 로드 → 합침. `flags & 1 == 0`(시각 미확정) 레코드는 제외. 점이 캔버스 폭보다 많으면 구간 평균으로 축소.
-- 시간 설정 섹션(`time_source != "ntp"`일 때만 표시):
+- 시간 설정: 기간 버튼(1시간/1일/1주) 옆의 작은 「시간 설정」 버튼으로 입력 패널을 토글한다. NTP 동기화 중에는 펌웨어가 수동 `set_time` 값을 무시하므로, 패널 안내 문구가 이를 알린다.
   1. "이 컴퓨터 시각으로 설정" 버튼 → `Math.floor(Date.now()/1000)`
   2. `<input type="datetime-local">` + "적용" 버튼 → 입력값을 브라우저 로컬 시간대로 해석해 epoch 변환
   두 경우 모두 `POST /api?cmd=set_time&epoch=N`. 성공 시 상태 줄 즉시 갱신.
@@ -121,7 +123,7 @@ Go CLI(`pc/internal/cli`)에 추가. 콘솔 출력은 영어(콘솔 도구 규�
 
 - 호스트(gcc+Unity): `json-mini` 이스케이프; `protocol` `set_wifi` 검증·`get_status` 확장 문자열; `web-bridge` 변환·화이트리스트·잘못된 값; `status-led-color` 파랑 깜빡임.
 - Go 테스트(`internal/cli`, `internal/client`): `wifi` 명령이 보내는 JSON(한글 SSID 그대로, `"`/`\` 이스케이프), `--clear`, 길이 검증 종료 코드 2, `status` 출력의 WiFi/Time source 줄.
-- 실기(수동): `bme280-tool wifi` → `status`에 IP → 브라우저 접속 → 현재값·그래프 3기간 → 시간 설정 2모드(NTP 상태에서는 섹션 숨김 확인은 WiFi 해제 후) → 공유기 전원 차단 시 LED 파랑 깜빡임 → 복구 시 재접속.
+- 실기(수동): `bme280-tool wifi` → `status`에 IP → 브라우저 접속 → 현재값·그래프 3기간 → 시간 설정 2모드(NTP 동기화 중에는 안내 문구로 수동 설정이 무시됨을 확인) → 공유기 전원 차단 시 LED 파랑 깜빡임 → 복구 시 재접속.
 
 ## 네이밍
 

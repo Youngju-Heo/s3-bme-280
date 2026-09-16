@@ -62,7 +62,7 @@ s.reset_input_buffer()
 | `firmware` | 펌웨어 버전 문자열 |
 | `boot_id` | 부팅 세대(0~255, 부팅마다 +1, NVS 저장). 미동기 레코드의 시각 환산에 사용 |
 | `uptime_s` | 부팅 후 경과 초 |
-| `time_valid` | 이번 부팅에서 `set_time`을 받았는지 |
+| `time_valid` | 이번 부팅에서 `set_time`을 받았거나 NTP 동기화가 완료되었는지 |
 
 ### set_time — 시각 동기화
 
@@ -242,5 +242,6 @@ WiFi에 연결되면(§3 `set_wifi`, `get_status`의 `ip` 참조) 장치가 80�
 - 쿼리 파라미터 값은 숫자(`offset`, `limit`, `epoch`)이거나 소문자/밑줄(`cmd`)만 허용하며, 그 외 문자나 목록에 없는 키가 있으면 마찬가지로 403이다.
 - 정상 응답의 본문은 시리얼 프로토콜의 JSON 응답과 동일하다(§3).
 - 응답이 내부 버퍼(24 KB)를 넘으면 `500 Internal Server Error`와 `{"ok":false,"error":"response_too_large"}`를 반환한다(`get_log`에 큰 `limit`을 쓸 때 주의).
+- 인증·CORS 검사가 없으므로 같은 LAN의 어떤 페이지든 `POST /api?cmd=set_time`을 보낼 수 있다(NTP 동기 후에는 무시됨). 설계상 LAN 내부 사용을 전제한다.
 
 참조 구현: [firmware/main/web.c](../firmware/main/web.c) (HTTP 서버·핸들러), [firmware/main/web-bridge.c](../firmware/main/web-bridge.c) (쿼리→JSON 변환·화이트리스트), [firmware/main/web/index.html](../firmware/main/web/index.html) (조회 페이지).
