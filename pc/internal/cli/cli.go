@@ -401,6 +401,9 @@ type wifiParams struct {
 }
 
 func parseWifiArgs(args []string) (wifiParams, error) {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		return wifiParams{}, flag.ErrHelp
+	}
 	if len(args) == 1 && args[0] == "--clear" {
 		return wifiParams{clear: true}, nil
 	}
@@ -408,6 +411,9 @@ func parseWifiArgs(args []string) (wifiParams, error) {
 		return wifiParams{}, fmt.Errorf("usage: wifi <SSID> <PASSWORD> | wifi --clear")
 	}
 	ssid, password := args[0], args[1]
+	if strings.HasPrefix(ssid, "-") || strings.HasPrefix(password, "-") {
+		return wifiParams{}, fmt.Errorf("usage: wifi <SSID> <PASSWORD> | wifi --clear")
+	}
 	if n := len(ssid); n < 1 || n > 32 {
 		return wifiParams{}, fmt.Errorf("SSID must be 1-32 bytes (got %d)", n)
 	}

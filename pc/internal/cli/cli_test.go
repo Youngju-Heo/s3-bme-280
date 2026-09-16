@@ -141,17 +141,29 @@ func TestWifiValidatesBeforeOpen(t *testing.T) {
 	f.OpenErr = errors.New("no device")
 	factory := func(string) transport.Transport { return f }
 	for _, args := range [][]string{
-		{"wifi"},                                        // missing args
-		{"wifi", "home"},                                // missing password
-		{"wifi", "home", "short"},                       // password < 8
-		{"wifi", strings.Repeat("a", 33), "pw12345678"}, // ssid > 32 bytes
-		{"wifi", "home", strings.Repeat("p", 64)},       // password > 63
-		{"wifi", "", "pw12345678"},                      // empty ssid
+		{"wifi"},                                             // missing args
+		{"wifi", "home"},                                     // missing password
+		{"wifi", "home", "short"},                            // password < 8
+		{"wifi", strings.Repeat("a", 33), "pw12345678"},      // ssid > 32 bytes
+		{"wifi", "home", strings.Repeat("p", 64)},            // password > 63
+		{"wifi", "", "pw12345678"},                           // empty ssid
+		{"wifi", "--clear", "extra"},                         // --clear takes no other args
+		{"wifi", "--clear", "pw12345678"},                    // --clear takes no other args
+		{"wifi", "-x", "pw12345678"},                         // ssid looks like a flag
+		{"wifi", strings.Repeat("가", 11), "pw12345678"},      // ssid > 32 bytes (multibyte)
 	} {
 		code, _, e := run(t, factory, "", append([]string{"--port", "COM9"}, args...)...)
 		if code != 2 || !strings.Contains(e, "Error:") || f.Opened {
 			t.Fatalf("%v: code %d stderr %q opened %v", args, code, e, f.Opened)
 		}
+	}
+}
+
+func TestWifiHelpExitsZero(t *testing.T) {
+	factory, _ := factoryWith(t)
+	code, out, _ := run(t, factory, "", "--port", "COM9", "wifi", "-h")
+	if code != 0 || !strings.Contains(out, "Usage:") {
+		t.Fatalf("code %d out %q", code, out)
 	}
 }
 
