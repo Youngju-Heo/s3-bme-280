@@ -13,6 +13,7 @@ $common = @("-std=c11", "-Wall", "-Wextra", "-Werror", "-I$unity",
 
 $tests = [ordered]@{
     "test-log-record" = @("$PSScriptRoot\test-log-record.c", "$root\components\log_store\log-record.c")
+    "test-log-store" = @("$PSScriptRoot\test-log-store.c", "$root\components\log_store\log-record.c", "$root\components\log_store\log-store.c")
 }
 
 $failed = 0
