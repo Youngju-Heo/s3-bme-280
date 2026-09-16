@@ -46,8 +46,10 @@ void test_read_triggers_forced_mode_and_compensates(void) {
     uint8_t *d = fake_bus_regs + BME280_REG_DATA;
     // adc_p = 415148 = 0x655AC -> 0x65 0x5A 0xC0 ; adc_t = 519888 = 0x7EED0 -> 0x7E 0xED 0x00 ; adc_h = 30000 = 0x7530
     d[0] = 0x65; d[1] = 0x5A; d[2] = 0xC0; d[3] = 0x7E; d[4] = 0xED; d[5] = 0x00; d[6] = 0x75; d[7] = 0x30;
+    int delay_calls_before_read = fake_bus_delay_calls;
     bme280_reading_t r;
     TEST_ASSERT_EQUAL(BME280_OK, bme280_read(&dev, &r));
+    TEST_ASSERT_GREATER_OR_EQUAL(1, fake_bus_delay_calls - delay_calls_before_read);
     TEST_ASSERT_EQUAL_HEX8(0x25, fake_bus_last_write(BME280_REG_CTRL_MEAS));   // forced mode
     bme280_reading_t expect;
     bme280_compensate(&dev.calib, 519888, 415148, 30000, &expect);

@@ -19,8 +19,8 @@ void bme280_parse_calib(const uint8_t calib1[26], const uint8_t calib2[7], bme28
     c->dig_h1 = calib1[25];
     c->dig_h2 = (int16_t)le16(calib2 + 0);
     c->dig_h3 = calib2[2];
-    c->dig_h4 = (int16_t)((calib2[3] << 4) | (calib2[4] & 0x0F));
-    c->dig_h5 = (int16_t)((calib2[5] << 4) | (calib2[4] >> 4));
+    c->dig_h4 = (int16_t)((int16_t)(int8_t)calib2[3] * 16 | (calib2[4] & 0x0F));
+    c->dig_h5 = (int16_t)((int16_t)(int8_t)calib2[5] * 16 | (calib2[4] >> 4));
     c->dig_h6 = (int8_t)calib2[6];
 }
 

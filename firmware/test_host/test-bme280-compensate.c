@@ -113,10 +113,21 @@ void test_parse_calib_decodes_layout(void) {
     TEST_ASSERT_EQUAL_INT8(30, c.dig_h6);
 }
 
+void test_parse_calib_sign_extends_h4_h5(void) {
+    uint8_t c1[26] = {0};
+    uint8_t c2[7] = {0};
+    c2[3] = 0xFF; c2[4] = 0xFF; c2[5] = 0xFF;
+    bme280_calib_t c;
+    bme280_parse_calib(c1, c2, &c);
+    TEST_ASSERT_EQUAL_INT16(-1, c.dig_h4);
+    TEST_ASSERT_EQUAL_INT16(-1, c.dig_h5);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_datasheet_example_temperature_and_pressure);
     RUN_TEST(test_matches_double_reference_over_range);
     RUN_TEST(test_parse_calib_decodes_layout);
+    RUN_TEST(test_parse_calib_sign_extends_h4_h5);
     return UNITY_END();
 }

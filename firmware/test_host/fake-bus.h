@@ -7,6 +7,7 @@ static uint8_t fake_bus_regs[256];
 static uint8_t fake_bus_write_log[64][2];   // {reg, val}
 static int fake_bus_write_count;
 static bool fake_bus_fail;
+static int fake_bus_delay_calls;
 
 static inline int fake_bus_read_regs(void *ctx, uint8_t reg, uint8_t *buf, size_t len)
 {
@@ -29,13 +30,14 @@ static inline int fake_bus_write_reg(void *ctx, uint8_t reg, uint8_t val)
     return 0;
 }
 
-static inline void fake_bus_delay_ms(void *ctx, uint32_t ms) { (void)ctx; (void)ms; }
+static inline void fake_bus_delay_ms(void *ctx, uint32_t ms) { (void)ctx; (void)ms; fake_bus_delay_calls++; }
 
 static inline void fake_bus_reset(void)
 {
     memset(fake_bus_regs, 0, sizeof fake_bus_regs);
     fake_bus_write_count = 0;
     fake_bus_fail = false;
+    fake_bus_delay_calls = 0;
     fake_bus_regs[BME280_REG_CHIP_ID] = BME280_CHIP_ID;
     fake_bus_regs[BME280_REG_STATUS] = 0x00;   // not measuring
 }
