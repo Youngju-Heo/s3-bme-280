@@ -103,7 +103,7 @@ docs/feature/2026-09/
 | `{"cmd":"get_log","offset":0,"limit":500}` | `{"ok":true,"total":1234,"offset":0,"records":[[timestamp,temp_centi,hum_centi,pressure_pa,flags,boot_id],...]}` |
 | `{"cmd":"clear_log"}` | `{"ok":true}` |
 | `{"cmd":"set_interval","interval_s":60}` | `{"ok":true}` (10~3600 범위 밖이면 오류) |
-| 오류 | `{"ok":false,"error":"unknown_cmd" \| "bad_request" \| "sensor_error" \| "out_of_range"}` |
+| 오류 | `{"ok":false,"error":"unknown_cmd" | "bad_request" | "sensor_error" | "out_of_range" | "store_error"}\| "bad_request" \| "sensor_error" \| "out_of_range"}` |
 
 - `get_log`의 `offset`은 가장 오래된 레코드 = 0. `limit` 최대 500. 레코드는 배열 형태로 크기 절감.
 - PC는 JSON으로 파싱되지 않는 줄을 무시한다.
@@ -141,7 +141,7 @@ bme280-tool [--port COM9] <command>
 | main 소스 파일 | `app-main.c`, `sampler.c`, `protocol.c`, `json-mini.c`, `clock.c`, `settings.c`, `spi-bus.c` |
 | 핵심 타입 | `log_record_t`, `log_store_t`, `log_store_flash_t`, `bme280_t`, `bme280_bus_t`, `bme280_reading_t` |
 | 핵심 함수 | `log_store_init/append/read/count/clear`, `bme280_init/read` |
-| 파티션 | `bmelog` (type=data, subtype=0x40, 512KB) |
+| 파티션 | `bmelog` (type=0x40 사용자 정의, subtype=0x00, 512KB) |
 | NVS | 네임스페이스 `bme`, 키 `interval_s`, `boot_id` |
 | Python 패키지 / CLI | `bme280_tool` / `bme280-tool` |
 | Python 클래스 | `SerialTransport`, `DeviceClient`, `DeviceError`, `LogRecord` |
