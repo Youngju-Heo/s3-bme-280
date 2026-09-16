@@ -78,6 +78,12 @@ void test_get_string_keeps_utf8_bytes(void) {
     TEST_ASSERT_EQUAL_STRING("우리집", out);
 }
 
+void test_has_key(void) {
+    TEST_ASSERT_TRUE(json_mini_has_key("{\"cmd\":\"x\",\"password\":\"\"}", "password"));
+    TEST_ASSERT_FALSE(json_mini_has_key("{\"cmd\":\"x\",\"password\":\"\"}", "epoch"));
+    TEST_ASSERT_FALSE(json_mini_has_key("{\"cmd\":\"password\"}", "password"));
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_get_string);
@@ -92,5 +98,6 @@ int main(void) {
     RUN_TEST(test_get_string_unescapes_quote_and_backslash);
     RUN_TEST(test_get_string_rejects_unknown_escape);
     RUN_TEST(test_get_string_keeps_utf8_bytes);
+    RUN_TEST(test_has_key);
     return UNITY_END();
 }

@@ -45,6 +45,11 @@ bool json_mini_get_string(const char *json, const char *key, char *out, size_t o
     return true;
 }
 
+bool json_mini_has_key(const char *json, const char *key)
+{
+    return find_value(json, key) != NULL;
+}
+
 bool json_mini_get_uint(const char *json, const char *key, uint32_t *out)
 {
     const char *p = find_value(json, key);

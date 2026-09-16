@@ -70,12 +70,13 @@ static void cmd_set_wifi(writer_t *w, const char *line)
 {
     char ssid[PROTOCOL_WIFI_SSID_MAX + 1];
     char password[PROTOCOL_WIFI_PASS_MAX + 1] = "";
-    char big[128];
+    char big[PROTOCOL_MAX_LINE];  // a decoded value can never exceed the line length
     if (!json_mini_get_string(line, "ssid", big, sizeof big)) { reply_error(w, "bad_request"); return; }
     size_t ssid_len = strlen(big);
     if (ssid_len > PROTOCOL_WIFI_SSID_MAX) { reply_error(w, "out_of_range"); return; }
     memcpy(ssid, big, ssid_len + 1);
-    if (json_mini_get_string(line, "password", big, sizeof big)) {
+    if (json_mini_has_key(line, "password")) {
+        if (!json_mini_get_string(line, "password", big, sizeof big)) { reply_error(w, "bad_request"); return; }
         size_t pass_len = strlen(big);
         if (pass_len != 0 && (pass_len < 8 || pass_len > PROTOCOL_WIFI_PASS_MAX)) { reply_error(w, "out_of_range"); return; }
         memcpy(password, big, pass_len + 1);

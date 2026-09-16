@@ -119,6 +119,25 @@ void test_set_wifi_validates_lengths(void) {
     TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"store_error\"}\n", handle("{\"cmd\":\"set_wifi\",\"ssid\":\"home\",\"password\":\"pw12345678\"}"));
 }
 
+void test_set_wifi_rejects_oversized_values(void) {
+    char line[256];
+    char ssid150[151];
+    memset(ssid150, 'a', 150); ssid150[150] = 0;
+    snprintf(line, sizeof line, "{\"cmd\":\"set_wifi\",\"ssid\":\"%s\",\"password\":\"pw12345678\"}", ssid150);
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"out_of_range\"}\n", handle(line));
+
+    char pass130[131];
+    memset(pass130, 'p', 130); pass130[130] = 0;
+    snprintf(line, sizeof line, "{\"cmd\":\"set_wifi\",\"ssid\":\"home\",\"password\":\"%s\"}", pass130);
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"out_of_range\"}\n", handle(line));
+}
+
+void test_set_wifi_rejects_malformed_password(void) {
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"bad_request\"}\n",
+                             handle("{\"cmd\":\"set_wifi\",\"ssid\":\"home\",\"password\":\"a\\nb\"}"));
+    TEST_ASSERT_EQUAL_STRING("", fake.wifi_ssid);
+}
+
 void test_get_log_pages(void) {
     for (uint32_t i = 0; i < 3; i++) {
         log_record_t r = { .timestamp = 1000 + i, .temp_centi = -100, .hum_centi = 4000, .pressure_pa = 100000 + i,
@@ -172,6 +191,8 @@ int main(void) {
     RUN_TEST(test_set_wifi_saves_credentials);
     RUN_TEST(test_set_wifi_clear_with_empty_ssid);
     RUN_TEST(test_set_wifi_validates_lengths);
+    RUN_TEST(test_set_wifi_rejects_oversized_values);
+    RUN_TEST(test_set_wifi_rejects_malformed_password);
     RUN_TEST(test_get_log_pages);
     RUN_TEST(test_get_log_defaults_and_clamps_limit);
     RUN_TEST(test_clear_log);
