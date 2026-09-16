@@ -42,7 +42,7 @@ s.reset_input_buffer()
 - 요청: JSON 객체 한 줄 + `\n`. `\r\n`도 허용(`\r`은 개행으로 취급, 빈 줄은 무시).
 - 응답: JSON 객체 한 줄 + `\n`. 요청 하나에 응답 하나, 순서대로.
 - 요청 줄 최대 **256바이트**(개행 제외). 초과하면 해당 줄은 통째로 버려지고 응답이 없다.
-- 요청 JSON은 **평면 객체, 문자열/음이 아닌 정수 값만** 파싱한다. 중첩·배열·이스케이프·공백 외 서식은 지원하지 않는다. 키는 `"key"` 형태로 정확히 따옴표로 감싼다.
+- 요청 JSON은 **평면 객체, 문자열/음이 아닌 정수 값만** 파싱한다. 문자열 값은 `\"`·`\\`만 이스케이프로 지원한다(그 외 이스케이프는 오류). 중첩·배열·공백 외 서식은 지원하지 않는다. 키는 `"key"` 형태로 정확히 따옴표로 감싼다.
 - 응답 JSON은 표준 JSON이다. 키는 snake_case.
 - 장치는 요청을 순차 처리하며 동시에 하나만 처리한다. 응답을 받은 뒤 다음 요청을 보낸다.
 
@@ -71,7 +71,7 @@ s.reset_input_buffer()
 ← {"ok":true,"boot_id":3,"uptime_s":121}
 ```
 
-`epoch`: Unix 시각(초, UTC). 장치에 배터리 RTC가 없으므로 **접속할 때마다 보내는 것을 권장**한다. 응답의 `boot_id`·`uptime_s`는 같은 부팅에서 동기화 전에 저장된 레코드의 시각을 PC에서 역산하는 데 쓴다(§5).
+`epoch`: Unix 시각(초, UTC). 장치에 배터리 RTC가 없으므로 **접속할 때마다 보내는 것을 권장**한다. 응답의 `boot_id`·`uptime_s`는 같은 부팅에서 동기화 전에 저장된 레코드의 시각을 PC에서 역산하는 데 쓴다(§5). WiFi가 연결되어 **NTP로 한 번 동기화된 뒤에는 이 명령이 무시된다**(NTP가 우선, `{"ok":true,...}`는 그대로 응답하지만 시각은 바뀌지 않는다).
 
 ### read_now — 즉시 측정 (저장 안 함)
 
@@ -86,7 +86,7 @@ s.reset_input_buffer()
 
 ```
 → {"cmd":"get_status"}
-← {"ok":true,"count":1234,"capacity":32512,"interval_s":60,"sensor_ok":true,"store_ok":true,"time_valid":true,"boot_id":3,"uptime_s":121}
+← {"ok":true,"count":1234,"capacity":32512,"interval_s":60,"sensor_ok":true,"store_ok":true,"time_valid":true,"boot_id":3,"uptime_s":121,"wifi_state":"connected","ip":"192.168.1.42","time_source":"ntp"}
 ```
 
 | 필드 | 설명 |
@@ -96,6 +96,9 @@ s.reset_input_buffer()
 | `interval_s` | 현재 측정 주기 |
 | `sensor_ok` | 마지막 주기 측정이 성공했는지 (부팅 시 센서 초기화 실패면 항상 false) |
 | `store_ok` | 마지막 플래시 저장이 성공했는지 |
+| `wifi_state` | `off`(자격증명 없음) / `connecting` / `connected` / `failed` |
+| `ip` | 연결됐을 때의 IP 주소 문자열, 아니면 빈 문자열 |
+| `time_source` | 시각 출처: `none`(미동기) / `pc`(`set_time`으로 동기) / `ntp` |
 
 ### get_log — 이력 조회 (페이지)
 
@@ -131,6 +134,26 @@ s.reset_input_buffer()
 
 10~3600초. NVS에 저장되어 재부팅 후에도 유지된다. 새 주기는 마지막 측정 시점 기준으로 즉시 적용된다.
 
+### set_wifi — WiFi 자격증명 저장
+
+```
+→ {"cmd":"set_wifi","ssid":"MyRouter","password":"secret123"}
+← {"ok":true}
+```
+
+| 파라미터 | 설명 |
+|---|---|
+| `ssid` | 필수, 1~32바이트 |
+| `password` | 선택, 생략하거나 빈 문자열이면 오픈 네트워크. 값이 있으면 8~63바이트 |
+
+저장되면 장치가 즉시 접속을 시도한다(`get_status`의 `wifi_state`·`ip`로 진행 확인). 오류:
+
+| `error` | 원인 |
+|---|---|
+| `bad_request` | `ssid`가 없거나, 존재하는 `ssid`/`password`가 형식 오류(따옴표 미종료, `\"`·`\\` 외 이스케이프 등) |
+| `out_of_range` | `ssid`가 32바이트 초과, 또는 `password`가 0바이트가 아니면서 8~63바이트 밖 |
+| `store_error` | NVS 저장 실패 |
+
 ### 오류 응답
 
 ```
@@ -139,11 +162,11 @@ s.reset_input_buffer()
 
 | `error` | 원인 |
 |---|---|
-| `bad_request` | `cmd` 문자열이 없거나, 필수 파라미터(`epoch`, `interval_s`)가 없거나 정수가 아님(음수, 2³²−1 초과, JSON 형식 불량 포함) |
+| `bad_request` | `cmd` 문자열이 없거나, 필수 파라미터(`epoch`, `interval_s`, `ssid`)가 없거나 정수/문자열 형식이 불량함(정수: 음수, 2³²−1 초과, JSON 형식 불량 포함; 문자열: 따옴표 미종료, 지원하지 않는 이스케이프) |
 | `unknown_cmd` | 모르는 `cmd` |
 | `sensor_error` | 센서 초기화 실패 상태이거나 측정 중 SPI 오류/타임아웃 |
-| `out_of_range` | `interval_s`가 10~3600 밖 (NVS 쓰기 실패도 이 코드로 나옴) |
-| `store_error` | `clear_log` 중 플래시 소거 실패 |
+| `out_of_range` | `interval_s`가 10~3600 밖, 또는 `set_wifi`의 `ssid`/`password` 길이 초과 (NVS 쓰기 실패도 이 코드로 나옴) |
+| `store_error` | `clear_log` 중 플래시 소거 실패, 또는 `set_wifi`의 NVS 저장 실패 |
 
 ## 4. 레코드 형식
 
@@ -204,3 +227,20 @@ s.write(b'{"cmd":"read_now"}\n'); print(s.readline().decode())
 ```
 
 참조 구현: [pc/internal/client/client.go](../pc/internal/client/client.go) (요청/응답·페이지네이션), [pc/internal/records/records.go](../pc/internal/records/records.go) (레코드·시각 해석), [firmware/main/protocol.c](../firmware/main/protocol.c) (장치 측 처리).
+
+## 9. HTTP 브리지
+
+WiFi에 연결되면(§3 `set_wifi`, `get_status`의 `ip` 참조) 장치가 80번 포트로 위 프로토콜을 HTTP로도 노출한다. 웹은 조회 전용이며, 삭제·주기 변경·WiFi 설정은 USB CLI로만 한다.
+
+| 엔드포인트 | 설명 |
+|---|---|
+| `GET /` | 조회용 웹 페이지(`text/html`, `Cache-Control: no-cache`) |
+| `GET /api?cmd=ping\|read_now\|get_status\|get_log&offset=…&limit=…` | 시리얼 명령을 그대로 실행하고 같은 JSON 응답을 돌려준다. `offset`·`limit`은 `get_log`에서만 쓰인다 |
+| `POST /api?cmd=set_time&epoch=…` | 시리얼 `set_time`과 동일(§3 참고: NTP 동기 후에는 무시됨) |
+
+- 위 조합 외의 `cmd`·메서드(예: `GET /api?cmd=clear_log`, `POST /api?cmd=set_interval`)는 `403 Forbidden`과 `{"ok":false,"error":"forbidden"}`을 반환한다.
+- 쿼리 파라미터 값은 숫자(`offset`, `limit`, `epoch`)이거나 소문자/밑줄(`cmd`)만 허용하며, 그 외 문자나 목록에 없는 키가 있으면 마찬가지로 403이다.
+- 정상 응답의 본문은 시리얼 프로토콜의 JSON 응답과 동일하다(§3).
+- 응답이 내부 버퍼(24 KB)를 넘으면 `500 Internal Server Error`와 `{"ok":false,"error":"response_too_large"}`를 반환한다(`get_log`에 큰 `limit`을 쓸 때 주의).
+
+참조 구현: [firmware/main/web.c](../firmware/main/web.c) (HTTP 서버·핸들러), [firmware/main/web-bridge.c](../firmware/main/web-bridge.c) (쿼리→JSON 변환·화이트리스트), [firmware/main/web/index.html](../firmware/main/web/index.html) (조회 페이지).
