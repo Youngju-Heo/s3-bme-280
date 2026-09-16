@@ -15,8 +15,8 @@
   .range button { margin-right: 6px; padding: 6px 12px; }
   .range button.active { background: #333; color: #fff; }
   canvas { width: 100%; height: 160px; background: #fff; border-radius: 8px; display: block; margin: 8px 0; }
-  #btn-settings { margin-top: 12px; padding: 6px 12px; }
-  #timebox { background: #fff7e0; border: 1px solid #e8c866; border-radius: 8px; padding: 12px; margin-top: 12px; }
+  .range #btn-settings { margin-left: 24px; padding: 3px 8px; font-size: .75rem; color: #666; background: #fff; border: 1px solid #ccc; border-radius: 4px; }
+  #timebox { background: #fff7e0; border: 1px solid #e8c866; border-radius: 8px; padding: 12px; margin: 8px 0; }
   #timebox input, #timebox button { padding: 6px 10px; margin: 4px 4px 4px 0; }
   .hidden { display: none; }
   #msg { color: #a00; font-size: .85rem; }
@@ -31,7 +31,13 @@
 </div>
 <div class="status" id="status">상태를 불러오는 중…</div>
 
-<button id="btn-settings">시간 설정</button>
+<div class="range">
+  <button data-hours="1" class="active">1시간</button>
+  <button data-hours="24">1일</button>
+  <button data-hours="168">1주</button>
+  <span id="loading"></span>
+  <button id="btn-settings">시간 설정</button>
+</div>
 <div id="timebox" class="hidden">
   <div id="time-note">장치 시각을 수동으로 설정합니다.</div>
   <button id="btn-browser-time">이 컴퓨터 시각으로 설정</button>
@@ -40,13 +46,6 @@
     <button id="btn-manual-time">입력한 시각으로 설정</button>
   </div>
   <div id="msg"></div>
-</div>
-
-<div class="range">
-  <button data-hours="1" class="active">1시간</button>
-  <button data-hours="24">1일</button>
-  <button data-hours="168">1주</button>
-  <span id="loading"></span>
 </div>
 <canvas id="chart-temp"></canvas>
 <canvas id="chart-hum"></canvas>
