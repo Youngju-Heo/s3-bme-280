@@ -15,6 +15,7 @@ $tests = [ordered]@{
     "test-log-record" = @("$PSScriptRoot\test-log-record.c", "$root\components\log_store\log-record.c")
     "test-log-store" = @("$PSScriptRoot\test-log-store.c", "$root\components\log_store\log-record.c", "$root\components\log_store\log-store.c")
     "test-bme280-compensate" = @("$PSScriptRoot\test-bme280-compensate.c", "$root\components\bme280\bme280-compensate.c")
+    "test-bme280" = @("$PSScriptRoot\test-bme280.c", "$root\components\bme280\bme280-compensate.c", "$root\components\bme280\bme280.c")
 }
 
 $failed = 0
