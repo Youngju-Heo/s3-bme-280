@@ -88,7 +88,8 @@ docs/feature/2026-09/
 - `clock`: `set_time(epoch)` 시 `settimeofday`. `boot_id`는 NVS 카운터로 부팅마다 +1. 미동기 상태에서는 `esp_timer_get_time()` 기반 경과초 제공.
 - `settings`: NVS 네임스페이스 `bme`, 키 `interval_s`, `boot_id`.
 - `sampler`: FreeRTOS 태스크. 주기마다 `bme280_read` → `log_record_t` 생성 → `log_store_append`. 센서 오류 시 저장 생략, 상태 플래그(`sensor_ok=false`) 갱신.
-- `protocol`: USB Serial/JTAG에서 한 줄(최대 256B) 읽어 cJSON으로 파싱, 명령 디스패치, 한 줄 응답. 동기 접근을 위해 `log_store`는 뮤텍스로 보호.
+- `protocol`: USB Serial/JTAG에서 한 줄(최대 256B) 읽어 파싱, 명령 디스패치, 한 줄 응답. 동기 접근을 위해 `log_store`는 뮤텍스로 보호.
+  - 요청 파싱은 자체 소형 파서(`json-mini`)로 처리: 평면 객체의 문자열/정수 값만 지원(`cmd`, `offset`, `limit`, `epoch`, `interval_s`). ESP-IDF v6.0.1에는 cJSON이 내장되어 있지 않아 외부 컴포넌트 의존을 피함. 응답은 `snprintf`로 생성.
 - IDF 로그는 UART0로 라우팅(`sdkconfig.defaults`), USB 포트는 프로토콜 전용.
 
 ## 프로토콜 (줄 단위 JSON, 키는 snake_case)
@@ -137,7 +138,7 @@ bme280-tool [--port COM9] <command>
 | 대상 | 이름 |
 |---|---|
 | 펌웨어 컴포넌트 | `bme280`, `log_store` |
-| main 소스 파일 | `app-main.c`, `sampler.c`, `protocol.c`, `clock.c`, `settings.c`, `spi-bus.c` |
+| main 소스 파일 | `app-main.c`, `sampler.c`, `protocol.c`, `json-mini.c`, `clock.c`, `settings.c`, `spi-bus.c` |
 | 핵심 타입 | `log_record_t`, `log_store_t`, `log_store_flash_t`, `bme280_t`, `bme280_bus_t`, `bme280_reading_t` |
 | 핵심 함수 | `log_store_init/append/read/count/clear`, `bme280_init/read` |
 | 파티션 | `bmelog` (type=data, subtype=0x40, 512KB) |
