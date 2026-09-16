@@ -56,6 +56,7 @@
   const PAGE = 500;
   let rangeHours = 1;
   let intervalS = 60;
+  let chartLoading = false;
 
   async function api(cmd, params, method) {
     const q = new URLSearchParams(Object.assign({ cmd }, params || {}));
@@ -78,6 +79,8 @@
       document.getElementById('press').textContent = fmt(r.pressure_pa / 100, 2);
     } catch (e) {
       document.getElementById('temp').textContent = '--';
+      document.getElementById('hum').textContent = '--';
+      document.getElementById('press').textContent = '--';
     }
     try {
       const s = await api('get_status');
@@ -111,11 +114,14 @@
   document.getElementById('btn-browser-time').onclick = () => setTime(Math.floor(Date.now() / 1000));
   document.getElementById('btn-manual-time').onclick = () => {
     const v = document.getElementById('manual-time').value;
-    if (!v) { document.getElementById('msg').textContent = '날짜와 시각을 입력하세요.'; return; }
-    setTime(Math.floor(new Date(v).getTime() / 1000));   // datetime-local is interpreted in the browser's local zone
+    const ms = new Date(v).getTime();
+    if (!v || isNaN(ms)) { document.getElementById('msg').textContent = '날짜와 시각을 올바르게 입력하세요.'; return; }
+    setTime(Math.floor(ms / 1000));   // datetime-local is interpreted in the browser's local zone
   };
 
   async function loadChart() {
+    if (chartLoading) return;
+    chartLoading = true;
     const loading = document.getElementById('loading');
     loading.textContent = '불러오는 중…';
     try {
@@ -137,6 +143,8 @@
       loading.textContent = data.length ? '' : '표시할 데이터가 없습니다';
     } catch (e) {
       loading.textContent = '이력 조회 실패: ' + e.message;
+    } finally {
+      chartLoading = false;
     }
   }
 
