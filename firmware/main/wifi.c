@@ -44,7 +44,7 @@ static void start_sntp_once(void)
 static void retry_timer_cb(void *arg)
 {
     (void)arg;
-    if (g_want_connect) esp_wifi_connect();
+    if (g_want_connect && g_state != WIFI_CONNECTED) esp_wifi_connect();
 }
 
 static void schedule_retry(void)
@@ -163,7 +163,9 @@ esp_err_t wifi_set_credentials(const char *ssid, const char *password)
     }
     if (was_connected) {
         g_reconnect_now = true;
-        return esp_wifi_disconnect();
+        esp_err_t e = esp_wifi_disconnect();
+        if (e != ESP_OK) g_reconnect_now = false;
+        return e;
     }
     return esp_wifi_connect();
 }
