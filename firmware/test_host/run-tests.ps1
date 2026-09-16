@@ -1,0 +1,29 @@
+param([string]$Name = "")
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+$idf = if ($env:IDF_PATH) { $env:IDF_PATH } else { "C:\esp\v6.0.1\esp-idf" }
+$gcc = "C:\msys64\mingw64\bin\gcc.exe"
+$unity = "$idf\components\unity\unity\src"
+$build = "$PSScriptRoot\build"
+New-Item -ItemType Directory -Force $build | Out-Null
+
+$common = @("-std=c11", "-Wall", "-Wextra", "-Werror", "-I$unity",
+    "-I$root\components\log_store\include", "-I$root\components\bme280\include",
+    "-I$root\main", "-I$PSScriptRoot", "$unity\unity.c")
+
+$tests = [ordered]@{
+    "test-log-record" = @("$PSScriptRoot\test-log-record.c", "$root\components\log_store\log-record.c")
+}
+
+$failed = 0
+foreach ($t in $tests.Keys) {
+    if ($Name -and $t -ne $Name) { continue }
+    $exe = "$build\$t.exe"
+    $srcs = $tests[$t]
+    & $gcc @common @srcs -o $exe
+    if ($LASTEXITCODE -ne 0) { throw "compile failed: $t" }
+    & $exe
+    if ($LASTEXITCODE -ne 0) { $failed++ }
+}
+if ($failed -gt 0) { Write-Host "FAILED: $failed test binaries"; exit 1 }
+Write-Host "ALL PASSED"
