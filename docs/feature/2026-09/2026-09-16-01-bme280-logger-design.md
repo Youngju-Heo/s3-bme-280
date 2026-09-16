@@ -87,8 +87,8 @@ docs/feature/2026-09/
 
 - `clock`: `set_time(epoch)` 시 `settimeofday`. `boot_id`는 NVS 카운터로 부팅마다 +1. 미동기 상태에서는 `esp_timer_get_time()` 기반 경과초 제공.
 - `settings`: NVS 네임스페이스 `bme`, 키 `interval_s`, `boot_id`.
-- `sampler`: FreeRTOS 태스크. 주기마다 `bme280_read` → `log_record_t` 생성 → `log_store_append`. 센서 오류 시 저장 생략, 상태 플래그(`sensor_ok=false`) 갱신.
-- `protocol`: USB Serial/JTAG에서 한 줄(최대 256B) 읽어 파싱, 명령 디스패치, 한 줄 응답. 동기 접근을 위해 `log_store`는 뮤텍스로 보호.
+- `sampler`: 단일 메인 루프 — `app_main`이 USB 줄 읽기(100ms 타임아웃)와 `sampler_tick`을 번갈아 호출하며, 센서·저장소는 이 루프에서만 접근하므로 태스크/뮤텍스가 없다. 주기마다 `bme280_read` → `log_record_t` 생성 → `log_store_append`. 센서 오류 시 저장 생략, 상태 플래그(`sensor_ok=false`) 갱신.
+- `protocol`: USB Serial/JTAG에서 한 줄(최대 256B) 읽어 파싱, 명령 디스패치, 한 줄 응답.
   - 요청 파싱은 자체 소형 파서(`json-mini`)로 처리: 평면 객체의 문자열/정수 값만 지원(`cmd`, `offset`, `limit`, `epoch`, `interval_s`). ESP-IDF v6.0.1에는 cJSON이 내장되어 있지 않아 외부 컴포넌트 의존을 피함. 응답은 `snprintf`로 생성.
 - IDF 로그는 UART0로 라우팅(`sdkconfig.defaults`), USB 포트는 프로토콜 전용.
 
