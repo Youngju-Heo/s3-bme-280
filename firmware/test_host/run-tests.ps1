@@ -23,6 +23,7 @@ $tests = [ordered]@{
                        "$root\components\bme280\bme280-compensate.c", "$root\components\bme280\bme280.c",
                        "$root\components\log_store\log-record.c", "$root\components\log_store\log-store.c")
     "test-status-led" = @("$PSScriptRoot\test-status-led.c", "$root\main\status-led-color.c")
+    "test-web-bridge" = @("$PSScriptRoot\test-web-bridge.c", "$root\main\web-bridge.c")
 }
 
 $failed = 0
