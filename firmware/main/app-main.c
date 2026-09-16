@@ -4,6 +4,7 @@
 #include "esp_partition.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 
 #include "bme280.h"
 #include "clock.h"
@@ -14,12 +15,15 @@
 #include "spi-bus.h"
 #include "status-led.h"
 #include "esp_timer.h"
+#include "web.h"
+#include "wifi.h"
 
 static const char *TAG = "app";
 
 static bme280_t g_sensor;
 static bme280_t *g_sensor_ptr;
 static log_store_t g_store;
+static SemaphoreHandle_t g_device_lock;
 
 // --- log_store flash backend on the "bmelog" partition ---
 static int flash_read(void *ctx, uint32_t offset, void *buf, size_t len)
@@ -56,12 +60,24 @@ static int op_set_interval_s(void *c, uint32_t s)
     sampler_set_interval(s);
     return 0;
 }
+static int op_set_wifi(void *c, const char *ssid, const char *password)
+{
+    (void)c;
+    return wifi_set_credentials(ssid, password) == ESP_OK ? 0 : -2;
+}
+static const char *op_wifi_state(void *c) { (void)c; return wifi_state_name(); }
+static void op_wifi_ip(void *c, char *buf, size_t len) { (void)c; wifi_ip(buf, len); }
+static const char *op_time_source(void *c) { (void)c; return clock_time_source(); }
 
 static const protocol_ops_t g_ops = {
     .ctx = NULL, .store = &g_store, .boot_id = op_boot_id, .uptime_s = op_uptime_s, .time_valid = op_time_valid,
     .set_time = op_set_time, .read_now = op_read_now, .sensor_ok = op_sensor_ok, .store_ok = op_store_ok,
     .interval_s = op_interval_s, .set_interval_s = op_set_interval_s,
+    .set_wifi = op_set_wifi, .wifi_state = op_wifi_state, .wifi_ip = op_wifi_ip, .time_source = op_time_source,
 };
+
+static void device_lock(void *c) { (void)c; xSemaphoreTake(g_device_lock, portMAX_DELAY); }
+static void device_unlock(void *c) { (void)c; xSemaphoreGive(g_device_lock); }
 
 static void usb_write(void *ctx, const char *data, size_t len)
 {
@@ -116,6 +132,13 @@ void app_main(void)
     err = status_led_init();
     if (err != ESP_OK) ESP_LOGE(TAG, "status LED init failed: %s", esp_err_to_name(err));
 
+    g_device_lock = xSemaphoreCreateMutex();
+    err = wifi_init();
+    if (err != ESP_OK) ESP_LOGE(TAG, "wifi init failed: %s", esp_err_to_name(err));
+    web_lock_t lock = { .ctx = NULL, .lock = device_lock, .unlock = device_unlock };
+    err = web_start(&lock);
+    if (err != ESP_OK) ESP_LOGE(TAG, "web start failed: %s", esp_err_to_name(err));
+
     static char line[PROTOCOL_MAX_LINE];
     size_t len = 0;
     bool overflow = false;
@@ -127,7 +150,9 @@ void app_main(void)
             if (c == '\n' || c == '\r') {
                 if (len > 0 && !overflow) {
                     line[len] = '\0';
+                    device_lock(NULL);
                     protocol_handle_line(line, usb_write, NULL);
+                    device_unlock(NULL);
                 }
                 len = 0;
                 overflow = false;
@@ -137,10 +162,16 @@ void app_main(void)
                 overflow = true;
             }
         }
+        device_lock(NULL);
         sampler_tick(clock_uptime_s(), clock_timestamp(), clock_time_valid(), settings_boot_id());
+        device_unlock(NULL);
 
         status_led_state_t led = STATUS_LED_ERROR;
-        if (sampler_sensor_ok() && sampler_store_ok()) led = clock_time_valid() ? STATUS_LED_OK : STATUS_LED_OK_NO_TIME;
+        if (sampler_sensor_ok() && sampler_store_ok()) {
+            wifi_state_t ws = wifi_state();
+            if (ws == WIFI_CONNECTING || ws == WIFI_FAILED) led = STATUS_LED_WIFI_CONNECTING;
+            else led = clock_time_valid() ? STATUS_LED_OK : STATUS_LED_OK_NO_TIME;
+        }
         status_led_update(led, (uint32_t)(esp_timer_get_time() / 1000));
     }
 }

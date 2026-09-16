@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BME280 로거</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; background: #f5f5f5; color: #222; }
+  h1 { font-size: 1.3rem; margin: 0 0 12px; }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; }
+  .card { background: #fff; border-radius: 8px; padding: 12px 16px; min-width: 140px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .card .label { font-size: .8rem; color: #666; }
+  .card .value { font-size: 1.8rem; font-weight: 600; }
+  .status { margin: 12px 0; font-size: .9rem; color: #444; line-height: 1.6; }
+  .range button { margin-right: 6px; padding: 6px 12px; }
+  .range button.active { background: #333; color: #fff; }
+  canvas { width: 100%; height: 160px; background: #fff; border-radius: 8px; display: block; margin: 8px 0; }
+  #timebox { background: #fff7e0; border: 1px solid #e8c866; border-radius: 8px; padding: 12px; margin-top: 12px; }
+  #timebox input, #timebox button { padding: 6px 10px; margin: 4px 4px 4px 0; }
+  .hidden { display: none; }
+  #msg { color: #a00; font-size: .85rem; }
+</style>
+</head>
+<body>
+<h1>BME280 로거</h1>
+<div class="cards">
+  <div class="card"><div class="label">온도</div><div class="value"><span id="temp">--</span> °C</div></div>
+  <div class="card"><div class="label">습도</div><div class="value"><span id="hum">--</span> %</div></div>
+  <div class="card"><div class="label">기압</div><div class="value"><span id="press">--</span> hPa</div></div>
+</div>
+<div class="status" id="status">상태를 불러오는 중…</div>
+
+<div id="timebox" class="hidden">
+  <div>장치 시각이 NTP로 동기화되지 않았습니다. 수동으로 설정할 수 있습니다.</div>
+  <button id="btn-browser-time">이 컴퓨터 시각으로 설정</button>
+  <div>
+    <input type="datetime-local" id="manual-time" step="1">
+    <button id="btn-manual-time">입력한 시각으로 설정</button>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<div class="range">
+  <button data-hours="1" class="active">1시간</button>
+  <button data-hours="24">1일</button>
+  <button data-hours="168">1주</button>
+  <span id="loading"></span>
+</div>
+<canvas id="chart-temp"></canvas>
+<canvas id="chart-hum"></canvas>
+<canvas id="chart-press"></canvas>
+
+<script>
+(function () {
+  const PAGE = 500;
+  let rangeHours = 1;
+  let intervalS = 60;
+
+  async function api(cmd, params, method) {
+    const q = new URLSearchParams(Object.assign({ cmd }, params || {}));
+    const res = await fetch('/api?' + q.toString(), { method: method || 'GET' });
+    const body = await res.json();
+    if (!body.ok) throw new Error(body.error || 'error');
+    return body;
+  }
+
+  function fmt(n, d) { return Number(n).toFixed(d); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function hms(s) { return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60); }
+  function fmtTime(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+
+  async function refreshNow() {
+    try {
+      const r = await api('read_now');
+      document.getElementById('temp').textContent = fmt(r.temp_c, 2);
+      document.getElementById('hum').textContent = fmt(r.hum_pct, 2);
+      document.getElementById('press').textContent = fmt(r.pressure_pa / 100, 2);
+    } catch (e) {
+      document.getElementById('temp').textContent = '--';
+    }
+    try {
+      const s = await api('get_status');
+      intervalS = s.interval_s;
+      const wifi = { off: '미설정', connecting: '접속 중', connected: '연결됨', failed: '접속 실패' }[s.wifi_state] || s.wifi_state;
+      const src = { none: '없음', pc: 'PC', ntp: 'NTP' }[s.time_source] || s.time_source;
+      document.getElementById('status').innerHTML =
+        '저장 레코드 ' + s.count + ' / ' + s.capacity + ' · 측정 주기 ' + s.interval_s + '초 · ' +
+        '센서 ' + (s.sensor_ok ? '정상' : '오류') + ' · 저장소 ' + (s.store_ok ? '정상' : '오류') + '<br>' +
+        '시간 출처 ' + src + ' · WiFi ' + wifi + (s.ip ? ' (' + s.ip + ')' : '') + ' · 부팅 #' + s.boot_id + ' · 가동 ' + hms(s.uptime_s);
+      document.getElementById('timebox').classList.toggle('hidden', s.time_source === 'ntp');
+    } catch (e) {
+      document.getElementById('status').textContent = '상태 조회 실패: ' + e.message;
+    }
+  }
+
+  async function setTime(epoch) {
+    const msg = document.getElementById('msg');
+    try {
+      await api('set_time', { epoch }, 'POST');
+      msg.textContent = '';
+      await refreshNow();
+      await loadChart();
+    } catch (e) {
+      msg.textContent = '시간 설정 실패: ' + e.message;
+    }
+  }
+  document.getElementById('btn-browser-time').onclick = () => setTime(Math.floor(Date.now() / 1000));
+  document.getElementById('btn-manual-time').onclick = () => {
+    const v = document.getElementById('manual-time').value;
+    if (!v) { document.getElementById('msg').textContent = '날짜와 시각을 입력하세요.'; return; }
+    setTime(Math.floor(new Date(v).getTime() / 1000));   // datetime-local is interpreted in the browser's local zone
+  };
+
+  async function loadChart() {
+    const loading = document.getElementById('loading');
+    loading.textContent = '불러오는 중…';
+    try {
+      const st = await api('get_status');
+      const need = Math.ceil(rangeHours * 3600 / Math.max(st.interval_s, 1));
+      let offset = Math.max(0, st.count - need);
+      const total = st.count;
+      const recs = [];
+      while (offset < total) {
+        const page = await api('get_log', { offset, limit: PAGE });
+        for (const r of page.records) if (r[4] & 1) recs.push({ t: r[0], temp: r[1] / 100, hum: r[2] / 100, press: r[3] / 100 });
+        offset += PAGE;
+      }
+      const since = Date.now() / 1000 - rangeHours * 3600;
+      const data = recs.filter(r => r.t >= since);
+      draw('chart-temp', data, 'temp', '온도 (°C)', 2);
+      draw('chart-hum', data, 'hum', '습도 (%)', 1);
+      draw('chart-press', data, 'press', '기압 (hPa)', 2);
+      loading.textContent = data.length ? '' : '표시할 데이터가 없습니다';
+    } catch (e) {
+      loading.textContent = '이력 조회 실패: ' + e.message;
+    }
+  }
+
+  function draw(id, data, key, title, digits) {
+    const c = document.getElementById(id);
+    const W = c.width = c.clientWidth * devicePixelRatio, H = c.height = c.clientHeight * devicePixelRatio;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = (12 * devicePixelRatio) + 'px sans-serif';
+    ctx.fillStyle = '#444';
+    ctx.fillText(title, 8 * devicePixelRatio, 16 * devicePixelRatio);
+    if (data.length < 2) return;
+    const padL = 56 * devicePixelRatio, padR = 8 * devicePixelRatio, padT = 24 * devicePixelRatio, padB = 20 * devicePixelRatio;
+    // downsample to one point per pixel column by averaging
+    const cols = Math.max(1, Math.floor((W - padL - padR) / devicePixelRatio));
+    const per = Math.max(1, Math.ceil(data.length / cols));
+    const pts = [];
+    for (let i = 0; i < data.length; i += per) {
+      const slice = data.slice(i, i + per);
+      pts.push({ t: slice[0].t, v: slice.reduce((a, r) => a + r[key], 0) / slice.length });
+    }
+    let min = Math.min(...pts.map(p => p.v)), max = Math.max(...pts.map(p => p.v));
+    if (max - min < 0.1) { min -= 0.5; max += 0.5; }
+    const t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
+    const x = t => padL + (t - t0) / Math.max(t1 - t0, 1) * (W - padL - padR);
+    const y = v => padT + (max - v) / (max - min) * (H - padT - padB);
+    ctx.strokeStyle = '#ddd'; ctx.lineWidth = devicePixelRatio;
+    for (let g = 0; g <= 4; g++) { const yy = padT + g * (H - padT - padB) / 4; ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+      ctx.fillText(fmt(max - g * (max - min) / 4, digits), 4 * devicePixelRatio, yy + 4 * devicePixelRatio); }
+    ctx.fillText(fmtTime(new Date(t0 * 1000)), padL, H - 4 * devicePixelRatio);
+    const endLabel = fmtTime(new Date(t1 * 1000));
+    ctx.fillText(endLabel, W - padR - ctx.measureText(endLabel).width, H - 4 * devicePixelRatio);
+    ctx.strokeStyle = '#2a6ebb'; ctx.lineWidth = 1.5 * devicePixelRatio;
+    ctx.beginPath();
+    pts.forEach((p, i) => i ? ctx.lineTo(x(p.t), y(p.v)) : ctx.moveTo(x(p.t), y(p.v)));
+    ctx.stroke();
+  }
+
+  document.querySelectorAll('.range button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.range button').forEach(o => o.classList.remove('active'));
+    b.classList.add('active');
+    rangeHours = Number(b.dataset.hours);
+    loadChart();
+  });
+
+  refreshNow();
+  loadChart();
+  setInterval(refreshNow, 10000);
+  setInterval(loadChart, 60000);
+})();
+</script>
+</body>
+</html>
