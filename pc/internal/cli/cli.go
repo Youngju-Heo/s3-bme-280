@@ -1,4 +1,4 @@
-// Package cli implements the bme280-tool commands with Korean user-facing output.
+// Package cli implements the bme280-tool commands with English console output.
 package cli
 
 import (
@@ -20,14 +20,14 @@ import (
 
 const defaultPort = "COM9"
 
-const usage = `사용법: bme280-tool [--port COM9] <command>
+const usage = `Usage: bme280-tool [--port COM9] <command>
 
-  status                             장치 상태
-  now                                즉시 측정값
+  status                             device status
+  now                                immediate reading
   log [--last N] [--since ISO8601] [--csv PATH]
-                                     이력 조회(기본 표 출력, 최신순)
-  clear [--yes]                      이력 삭제(확인 프롬프트)
-  interval [SECONDS]                 측정 주기 조회/변경
+                                     history (table, newest first)
+  clear [--yes]                      delete all records (asks for confirmation)
+  interval [SECONDS]                 show or set the sampling interval
 `
 
 type Factory func(port string) transport.Transport
@@ -55,7 +55,7 @@ func Run(args []string, stdout, stderr io.Writer, stdin io.Reader, factory Facto
 	fs := flag.NewFlagSet("bme280-tool", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, usage) }
-	port := fs.String("port", defaultPort, "시리얼 포트")
+	port := fs.String("port", defaultPort, "serial port")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -66,7 +66,7 @@ func Run(args []string, stdout, stderr io.Writer, stdin io.Reader, factory Facto
 	}
 	handler, ok := commands[rest[0]]
 	if !ok {
-		fmt.Fprintf(stderr, "알 수 없는 명령: %s\n", rest[0])
+		fmt.Fprintf(stderr, "Unknown command: %s\n", rest[0])
 		fs.Usage()
 		return 2
 	}
@@ -76,7 +76,7 @@ func Run(args []string, stdout, stderr io.Writer, stdin io.Reader, factory Facto
 
 	c := client.New(factory(*port))
 	if err := c.Open(); err != nil {
-		fmt.Fprintf(stderr, "오류: 포트를 열 수 없습니다 (%v)\n", err)
+		fmt.Fprintf(stderr, "Error: cannot open port (%v)\n", err)
 		return 1
 	}
 	defer c.Close()
@@ -88,7 +88,7 @@ func Run(args []string, stdout, stderr io.Writer, stdin io.Reader, factory Facto
 	code, err := handler(&session{client: c, sync: sync, stdout: stdout, stdin: stdin}, rest[1:])
 	if err != nil {
 		if code == 2 {
-			fmt.Fprintf(stderr, "오류: %v\n", err)
+			fmt.Fprintf(stderr, "Error: %v\n", err)
 			return 2
 		}
 		return reportError(stderr, err)
@@ -110,9 +110,9 @@ func connect(c *client.DeviceClient) (records.SyncInfo, error) {
 func reportError(stderr io.Writer, err error) int {
 	var de *client.DeviceError
 	if errors.As(err, &de) {
-		fmt.Fprintf(stderr, "오류: 장치 응답 실패 (%s)\n", de.Code)
+		fmt.Fprintf(stderr, "Error: device request failed (%s)\n", de.Code)
 	} else {
-		fmt.Fprintf(stderr, "오류: %v\n", err)
+		fmt.Fprintf(stderr, "Error: %v\n", err)
 	}
 	return 1
 }
@@ -126,20 +126,20 @@ func cmdStatus(s *session, args []string) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	fmt.Fprintf(s.stdout, "저장 레코드: %d / %d\n", client.Int64(st["count"]), client.Int64(st["capacity"]))
-	fmt.Fprintf(s.stdout, "측정 주기: %d초\n", client.Int64(st["interval_s"]))
-	fmt.Fprintf(s.stdout, "센서 상태: %s\n", okLabel(client.Bool(st["sensor_ok"], false)))
-	fmt.Fprintf(s.stdout, "저장소 상태: %s\n", okLabel(client.Bool(st["store_ok"], true)))
-	fmt.Fprintf(s.stdout, "시간 동기화: %s\n", map[bool]string{true: "완료", false: "미완료"}[client.Bool(st["time_valid"], false)])
-	fmt.Fprintf(s.stdout, "부팅 세대: %d, 가동 시간: %s\n", client.Int64(st["boot_id"]), hms(client.Int64(st["uptime_s"])))
+	fmt.Fprintf(s.stdout, "Records: %d / %d\n", client.Int64(st["count"]), client.Int64(st["capacity"]))
+	fmt.Fprintf(s.stdout, "Interval: %ds\n", client.Int64(st["interval_s"]))
+	fmt.Fprintf(s.stdout, "Sensor: %s\n", okLabel(client.Bool(st["sensor_ok"], false)))
+	fmt.Fprintf(s.stdout, "Store: %s\n", okLabel(client.Bool(st["store_ok"], true)))
+	fmt.Fprintf(s.stdout, "Time sync: %s\n", map[bool]string{true: "done", false: "pending"}[client.Bool(st["time_valid"], false)])
+	fmt.Fprintf(s.stdout, "Boot #%d, uptime %s\n", client.Int64(st["boot_id"]), hms(client.Int64(st["uptime_s"])))
 	return 0, nil
 }
 
 func okLabel(ok bool) string {
 	if ok {
-		return "정상"
+		return "ok"
 	}
-	return "오류"
+	return "error"
 }
 
 func cmdNow(s *session, args []string) (int, error) {
@@ -147,9 +147,9 @@ func cmdNow(s *session, args []string) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	fmt.Fprintf(s.stdout, "온도: %.2f °C\n", client.Float(r["temp_c"]))
-	fmt.Fprintf(s.stdout, "습도: %.2f %%\n", client.Float(r["hum_pct"]))
-	fmt.Fprintf(s.stdout, "기압: %.2f hPa\n", client.Float(r["pressure_pa"])/100)
+	fmt.Fprintf(s.stdout, "Temperature: %.2f °C\n", client.Float(r["temp_c"]))
+	fmt.Fprintf(s.stdout, "Humidity: %.2f %%\n", client.Float(r["hum_pct"]))
+	fmt.Fprintf(s.stdout, "Pressure: %.2f hPa\n", client.Float(r["pressure_pa"])/100)
 	return 0, nil
 }
 
@@ -165,9 +165,9 @@ func parseSince(s string) (time.Time, error) {
 func cmdLog(s *session, args []string) (int, error) {
 	fs := flag.NewFlagSet("log", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	last := fs.Int("last", -1, "최근 N건만")
-	since := fs.String("since", "", "이 시각 이후만 (ISO 8601)")
-	csvPath := fs.String("csv", "", "표 대신 CSV 파일로 저장")
+	last := fs.Int("last", -1, "only the last N records")
+	since := fs.String("since", "", "records at or after this time (ISO 8601, e.g. 2026-09-16T14:00)")
+	csvPath := fs.String("csv", "", "write CSV to this file instead of printing a table")
 	if err := fs.Parse(args); err != nil {
 		return 2, err
 	}
@@ -227,11 +227,11 @@ func cmdLog(s *session, args []string) (int, error) {
 		if err := w.Error(); err != nil {
 			return 1, err
 		}
-		fmt.Fprintf(s.stdout, "%d건을 %s에 저장했습니다\n", len(recs), *csvPath)
+		fmt.Fprintf(s.stdout, "Saved %d records to %s\n", len(recs), *csvPath)
 		return 0, nil
 	}
 
-	fmt.Fprintf(s.stdout, "%-22s%10s%10s%12s\n", "시각", "온도(°C)", "습도(%)", "기압(hPa)")
+	fmt.Fprintf(s.stdout, "%-22s%10s%10s%12s\n", "Time", "Temp(°C)", "Hum(%)", "Press(hPa)")
 	for _, r := range recs {
 		fmt.Fprintf(s.stdout, "%-22s%10.2f%10.2f%12.2f\n", records.FormatTime(r, s.sync), r.TempC(), r.HumPct(), r.PressureHPa())
 	}
@@ -241,22 +241,22 @@ func cmdLog(s *session, args []string) (int, error) {
 func cmdClear(s *session, args []string) (int, error) {
 	fs := flag.NewFlagSet("clear", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	yes := fs.Bool("yes", false, "확인 없이 삭제")
+	yes := fs.Bool("yes", false, "delete without confirmation")
 	if err := fs.Parse(args); err != nil {
 		return 2, err
 	}
 	if !*yes {
-		fmt.Fprint(s.stdout, "장치의 이력을 모두 삭제합니다. 계속할까요? (y/N): ")
+		fmt.Fprint(s.stdout, "Delete all records on the device. Continue? (y/N): ")
 		answer, _ := bufio.NewReader(s.stdin).ReadString('\n')
 		if strings.ToLower(strings.TrimSpace(answer)) != "y" {
-			fmt.Fprintln(s.stdout, "취소했습니다")
+			fmt.Fprintln(s.stdout, "Cancelled")
 			return 0, nil
 		}
 	}
 	if _, err := s.client.ClearLog(); err != nil {
 		return 1, err
 	}
-	fmt.Fprintln(s.stdout, "이력을 삭제했습니다")
+	fmt.Fprintln(s.stdout, "Records deleted")
 	return 0, nil
 }
 
@@ -266,7 +266,7 @@ func cmdInterval(s *session, args []string) (int, error) {
 		if err != nil {
 			return 1, err
 		}
-		fmt.Fprintf(s.stdout, "측정 주기: %d초\n", client.Int64(st["interval_s"]))
+		fmt.Fprintf(s.stdout, "Interval: %ds\n", client.Int64(st["interval_s"]))
 		return 0, nil
 	}
 	seconds, err := strconv.Atoi(args[0])
@@ -276,6 +276,6 @@ func cmdInterval(s *session, args []string) (int, error) {
 	if _, err := s.client.SetInterval(seconds); err != nil {
 		return 1, err
 	}
-	fmt.Fprintf(s.stdout, "측정 주기를 %d초로 설정했습니다\n", seconds)
+	fmt.Fprintf(s.stdout, "Interval set to %ds\n", seconds)
 	return 0, nil
 }

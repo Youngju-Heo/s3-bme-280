@@ -88,7 +88,7 @@ func abs(x float64) float64 {
 func TestNowPrintsReading(t *testing.T) {
 	factory, _ := factoryWith(t, `{"ok":true,"temp_c":23.45,"hum_pct":41.20,"pressure_pa":101325}`)
 	_, out, _ := run(t, factory, "", "--port", "COM9", "now")
-	for _, want := range []string{"온도", "23.45", "습도", "41.20", "기압", "1013.25"} {
+	for _, want := range []string{"Temperature", "23.45", "Humidity", "41.20", "Pressure", "1013.25"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in %q", want, out)
 		}
@@ -98,7 +98,7 @@ func TestNowPrintsReading(t *testing.T) {
 func TestStatusPrintsFields(t *testing.T) {
 	factory, _ := factoryWith(t, status)
 	_, out, _ := run(t, factory, "", "--port", "COM9", "status")
-	for _, want := range []string{"1234 / 32512", "60초", "센서 상태: 정상", "저장소 상태: 정상", "시간 동기화: 완료", "부팅 세대: 3, 가동 시간: 00:02:01"} {
+	for _, want := range []string{"1234 / 32512", "Interval: 60s", "Sensor: ok", "Store: ok", "Time sync: done", "Boot #3, uptime 00:02:01"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in %q", want, out)
 		}
@@ -113,7 +113,7 @@ func TestLogTableNewestFirst(t *testing.T) {
 	factory, _ := factoryWith(t, logPage(3, 0, recs))
 	_, out, _ := run(t, factory, "", "--port", "COM9", "log")
 	lines := nonEmptyLines(out)
-	if len(lines) != 4 || !strings.Contains(lines[0], "시각") || !strings.Contains(lines[1], "20.02") || !strings.Contains(lines[3], "20.00") {
+	if len(lines) != 4 || !strings.Contains(lines[0], "Time") || !strings.Contains(lines[1], "20.02") || !strings.Contains(lines[3], "20.00") {
 		t.Fatalf("lines %q", lines)
 	}
 }
@@ -159,7 +159,7 @@ func TestLogCSVWritesFile(t *testing.T) {
 	if lines[0] != "timestamp,temp_c,hum_pct,pressure_pa,time_valid,boot_id" || len(lines) != 3 {
 		t.Fatalf("csv %q", lines)
 	}
-	if !strings.Contains(out, "2건") {
+	if !strings.Contains(out, "Saved 2 records") {
 		t.Fatalf("out %q", out)
 	}
 }
@@ -167,7 +167,7 @@ func TestLogCSVWritesFile(t *testing.T) {
 func TestClearRequiresConfirmation(t *testing.T) {
 	factory, f := factoryWith(t, `{"ok":true}`)
 	code, out, _ := run(t, factory, "n\n", "--port", "COM9", "clear")
-	if code != 0 || !strings.Contains(out, "취소") {
+	if code != 0 || !strings.Contains(out, "Cancelled") {
 		t.Fatalf("code %d out %q", code, out)
 	}
 	for i := range f.Sent {
@@ -180,7 +180,7 @@ func TestClearRequiresConfirmation(t *testing.T) {
 func TestClearWithYes(t *testing.T) {
 	factory, f := factoryWith(t, `{"ok":true}`)
 	code, out, _ := run(t, factory, "", "--port", "COM9", "clear", "--yes")
-	if code != 0 || sent(t, f, 2)["cmd"] != "clear_log" || !strings.Contains(out, "삭제") {
+	if code != 0 || sent(t, f, 2)["cmd"] != "clear_log" || !strings.Contains(out, "Records deleted") {
 		t.Fatalf("code %d out %q sent %v", code, out, f.Sent)
 	}
 }
@@ -188,12 +188,12 @@ func TestClearWithYes(t *testing.T) {
 func TestIntervalGetAndSet(t *testing.T) {
 	factory, _ := factoryWith(t, status)
 	_, out, _ := run(t, factory, "", "--port", "COM9", "interval")
-	if !strings.Contains(out, "60초") {
+	if !strings.Contains(out, "Interval: 60s") {
 		t.Fatalf("out %q", out)
 	}
 	factory, f := factoryWith(t, `{"ok":true}`)
 	code, out, _ := run(t, factory, "", "--port", "COM9", "interval", "120")
-	if code != 0 || sent(t, f, 2)["interval_s"] != float64(120) || !strings.Contains(out, "120초") {
+	if code != 0 || sent(t, f, 2)["interval_s"] != float64(120) || !strings.Contains(out, "Interval set to 120s") {
 		t.Fatalf("code %d out %q", code, out)
 	}
 }
@@ -216,7 +216,7 @@ func TestUnknownCommandExits2(t *testing.T) {
 func TestLogSinceInvalidExits2(t *testing.T) {
 	factory, _ := factoryWith(t, logPage(0, 0, nil))
 	code, _, e := run(t, factory, "", "--port", "COM9", "log", "--since", "not-a-date")
-	if code != 2 || !strings.Contains(e, "오류:") {
+	if code != 2 || !strings.Contains(e, "Error:") {
 		t.Fatalf("code %d stderr %q", code, e)
 	}
 }

@@ -8,7 +8,7 @@
 
 | 항목 | 결정 | 근거 |
 |---|---|---|
-| 범위 | Python `bme280-tool`과 **동일한 명령·출력·종료 코드**의 Go CLI. 기능 추가 없음 | 재작성이므로 동작 동등성이 성공 기준 |
+| 범위 | Python `bme280-tool`과 **동일한 명령·출력·종료 코드**의 Go CLI. 기능 추가 없음 | 재작성이므로 동작 동등성이 성공 기준. 단, 출력 텍스트는 콘솔 도구 규칙에 따라 영어로 작성한다(Python의 한국어 출력은 규칙 오독이었음) |
 | Python 처리 | 완료 후 `pc/`의 Python 파일 삭제, 같은 경로에 Go 프로젝트 | 유지보수 대상 하나 |
 | 의존성 | `go.bug.st/serial` 하나. CLI는 표준 `flag`, JSON은 `encoding/json` | 바이너리 작고 빌드 단순 |
 | 진행 순서 | 이 작업 → 이후 WiFi 웹(설계 `2026-09-16-02`)의 CLI 부분을 Go 기준으로 수정 | 이중 작업 방지 |
@@ -73,7 +73,7 @@ func CSVRow(r LogRecord, s SyncInfo) []string       // 시각은 RFC3339 대신 
 - `Run(args []string, stdout, stderr io.Writer, stdin io.Reader, factory func(port string) client.Transport) int`
 - 전역 플래그 `--port`(기본 `COM9`), 서브커맨드 `status | now | log [--last N] [--since ISO8601] [--csv PATH] | clear [--yes] | interval [SECONDS]`. 각 서브커맨드는 `flag.NewFlagSet`.
 - 접속: `Ping` → `SetTime(now)` → `SyncInfo{boot_id, uptime_s, time.Now()}`.
-- 출력 문자열은 Python과 동일(한국어). 표 헤더/폭: `시각`(22칸 좌) `온도(°C)`(10 우) `습도(%)`(10 우) `기압(hPa)`(12 우). 최신순.
+- 출력 문자열은 영어다(콘솔 도구 규칙; UI가 아니므로 한국어 대상이 아님). 표 헤더/폭: `Time`(22칸 좌) `Temp(°C)`(10 우) `Hum(%)`(10 우) `Press(hPa)`(12 우). 최신순.
 - 오류: `DeviceError` → stderr `오류: 장치 응답 실패 (<code>)` 종료 1; 포트 열기 실패 → `오류: 포트를 열 수 없습니다 (<err>)` 종료 1.
 - Windows 콘솔 한글: `main.go`에서 `SetConsoleOutputCP(65001)` 호출(`golang.org/x/sys` 없이 `syscall.NewLazyDLL("kernel32")`).
 
