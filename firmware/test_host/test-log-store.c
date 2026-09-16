@@ -110,7 +110,7 @@ void test_recovery_skips_partially_written_slot(void) {
 
 void test_read_skips_crc_corrupted_record(void) {
     append_n(3, 0);
-    fake_flash_mem[1 * LOG_RECORD_SIZE + 8] &= 0xF0;   // damage pressure byte of record 1
+    fake_flash_mem[1 * LOG_RECORD_SIZE + 9] &= 0x0F;   // damage pressure byte of record 1 (0x86 -> 0x06, NOR-style bit clear)
     log_record_t r[3]; uint32_t n;
     TEST_ASSERT_EQUAL(0, log_store_read(&store, 0, r, 3, &n));
     TEST_ASSERT_EQUAL_UINT32(2, n);
