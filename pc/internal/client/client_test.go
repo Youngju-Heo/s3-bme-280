@@ -77,6 +77,20 @@ func TestRequestTimesOut(t *testing.T) {
 	}
 }
 
+func TestSetWifiSendsUTF8AndEscapes(t *testing.T) {
+	f := transport.NewFake(`{"ok":true}`)
+	if _, err := New(f).SetWifi("우리집", `p"w\1234567`); err != nil {
+		t.Fatal(err)
+	}
+	line := f.Sent[0]
+	if !strings.Contains(line, `"ssid":"우리집"`) || !strings.Contains(line, `"password":"p\"w\\1234567"`) {
+		t.Fatalf("sent %q", line)
+	}
+	if got := sentJSON(t, line); got["cmd"] != "set_wifi" {
+		t.Fatalf("sent %v", got)
+	}
+}
+
 func TestOpenAndCloseDelegateToTransport(t *testing.T) {
 	f := transport.NewFake()
 	c := New(f)

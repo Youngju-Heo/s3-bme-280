@@ -17,7 +17,7 @@ import (
 const (
 	ping    = `{"ok":true,"firmware":"0.1.0","boot_id":3,"uptime_s":1000,"time_valid":false}`
 	setTime = `{"ok":true,"boot_id":3,"uptime_s":1000}`
-	status  = `{"ok":true,"count":1234,"capacity":32512,"interval_s":60,"sensor_ok":true,"store_ok":true,"time_valid":true,"boot_id":3,"uptime_s":121}`
+	status  = `{"ok":true,"count":1234,"capacity":32512,"interval_s":60,"sensor_ok":true,"store_ok":true,"time_valid":true,"boot_id":3,"uptime_s":121,"wifi_state":"connected","ip":"192.168.0.23","time_source":"ntp"}`
 )
 
 func factoryWith(t *testing.T, responses ...string) (Factory, *transport.Fake) {
@@ -102,6 +102,55 @@ func TestStatusPrintsFields(t *testing.T) {
 	for _, want := range []string{"1234 / 32512", "Interval: 60s", "Sensor: ok", "Store: ok", "Time sync: done", "Boot #3, uptime 00:02:01"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in %q", want, out)
+		}
+	}
+}
+
+func TestStatusPrintsWifiAndTimeSource(t *testing.T) {
+	factory, _ := factoryWith(t, status)
+	_, out, _ := run(t, factory, "", "--port", "COM9", "status")
+	if !strings.Contains(out, "WiFi: connected (192.168.0.23)") || !strings.Contains(out, "Time source: ntp") {
+		t.Fatalf("out %q", out)
+	}
+	old := strings.Replace(status, `,"wifi_state":"connected","ip":"192.168.0.23","time_source":"ntp"`, "", 1)
+	factory, _ = factoryWith(t, old)
+	_, out, _ = run(t, factory, "", "--port", "COM9", "status")
+	if strings.Contains(out, "WiFi:") {
+		t.Fatalf("old firmware must not print WiFi line: %q", out)
+	}
+}
+
+func TestWifiSetAndClear(t *testing.T) {
+	factory, f := factoryWith(t, `{"ok":true}`)
+	code, out, _ := run(t, factory, "", "--port", "COM9", "wifi", "우리집", "pw12345678")
+	if code != 0 || !strings.Contains(out, "WiFi credentials saved") {
+		t.Fatalf("code %d out %q", code, out)
+	}
+	if got := sent(t, f, 2); got["cmd"] != "set_wifi" || got["ssid"] != "우리집" || got["password"] != "pw12345678" {
+		t.Fatalf("sent %v", got)
+	}
+	factory, f = factoryWith(t, `{"ok":true}`)
+	code, out, _ = run(t, factory, "", "--port", "COM9", "wifi", "--clear")
+	if code != 0 || !strings.Contains(out, "WiFi credentials cleared") || sent(t, f, 2)["ssid"] != "" {
+		t.Fatalf("code %d out %q sent %v", code, out, f.Sent)
+	}
+}
+
+func TestWifiValidatesBeforeOpen(t *testing.T) {
+	f := transport.NewFake()
+	f.OpenErr = errors.New("no device")
+	factory := func(string) transport.Transport { return f }
+	for _, args := range [][]string{
+		{"wifi"},                                        // missing args
+		{"wifi", "home"},                                // missing password
+		{"wifi", "home", "short"},                       // password < 8
+		{"wifi", strings.Repeat("a", 33), "pw12345678"}, // ssid > 32 bytes
+		{"wifi", "home", strings.Repeat("p", 64)},       // password > 63
+		{"wifi", "", "pw12345678"},                      // empty ssid
+	} {
+		code, _, e := run(t, factory, "", append([]string{"--port", "COM9"}, args...)...)
+		if code != 2 || !strings.Contains(e, "Error:") || f.Opened {
+			t.Fatalf("%v: code %d stderr %q opened %v", args, code, e, f.Opened)
 		}
 	}
 }

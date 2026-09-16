@@ -28,6 +28,7 @@ const usage = `Usage: bme280-tool [--port COM9] <command>
                                      history (table, newest first)
   clear [--yes]                      delete all records (asks for confirmation)
   interval [SECONDS]                 show or set the sampling interval
+  wifi <SSID> <PASSWORD> | --clear   save WiFi credentials (empty password = open network)
 `
 
 type Factory func(port string) transport.Transport
@@ -76,6 +77,12 @@ func prepare(name string, args []string) (runner, error) {
 			return nil, err
 		}
 		return func(s *session) (int, error) { return cmdInterval(s, p) }, nil
+	case "wifi":
+		p, err := parseWifiArgs(args)
+		if err != nil {
+			return nil, err
+		}
+		return func(s *session) (int, error) { return cmdWifi(s, p) }, nil
 	}
 	return nil, errUnknownCommand
 }
@@ -185,6 +192,17 @@ func cmdStatus(s *session) (int, error) {
 	fmt.Fprintf(s.stdout, "Store: %s\n", okLabel(client.Bool(st["store_ok"], true)))
 	fmt.Fprintf(s.stdout, "Time sync: %s\n", map[bool]string{true: "done", false: "pending"}[client.Bool(st["time_valid"], false)])
 	fmt.Fprintf(s.stdout, "Boot #%d, uptime %s\n", client.Int64(st["boot_id"]), hms(client.Int64(st["uptime_s"])))
+	if ws, ok := st["wifi_state"].(string); ok {
+		ip, _ := st["ip"].(string)
+		if ws == "connected" && ip != "" {
+			fmt.Fprintf(s.stdout, "WiFi: %s (%s)\n", ws, ip)
+		} else {
+			fmt.Fprintf(s.stdout, "WiFi: %s\n", ws)
+		}
+	}
+	if src, ok := st["time_source"].(string); ok {
+		fmt.Fprintf(s.stdout, "Time source: %s\n", src)
+	}
 	return 0, nil
 }
 
@@ -373,5 +391,43 @@ func cmdInterval(s *session, p intervalParams) (int, error) {
 		return 1, err
 	}
 	fmt.Fprintf(s.stdout, "Interval set to %ds\n", p.seconds)
+	return 0, nil
+}
+
+type wifiParams struct {
+	clear    bool
+	ssid     string
+	password string
+}
+
+func parseWifiArgs(args []string) (wifiParams, error) {
+	if len(args) == 1 && args[0] == "--clear" {
+		return wifiParams{clear: true}, nil
+	}
+	if len(args) != 2 {
+		return wifiParams{}, fmt.Errorf("usage: wifi <SSID> <PASSWORD> | wifi --clear")
+	}
+	ssid, password := args[0], args[1]
+	if n := len(ssid); n < 1 || n > 32 {
+		return wifiParams{}, fmt.Errorf("SSID must be 1-32 bytes (got %d)", n)
+	}
+	if n := len(password); n != 0 && (n < 8 || n > 63) {
+		return wifiParams{}, fmt.Errorf("password must be empty or 8-63 bytes (got %d)", n)
+	}
+	return wifiParams{ssid: ssid, password: password}, nil
+}
+
+func cmdWifi(s *session, p wifiParams) (int, error) {
+	if p.clear {
+		if _, err := s.client.SetWifi("", ""); err != nil {
+			return 1, err
+		}
+		fmt.Fprintln(s.stdout, "WiFi credentials cleared.")
+		return 0, nil
+	}
+	if _, err := s.client.SetWifi(p.ssid, p.password); err != nil {
+		return 1, err
+	}
+	fmt.Fprintln(s.stdout, "WiFi credentials saved. Run 'status' to check the connection.")
 	return 0, nil
 }

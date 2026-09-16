@@ -2,6 +2,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"time"
@@ -37,11 +38,13 @@ func (c *DeviceClient) Request(cmd string, timeout time.Duration, params map[str
 	for k, v := range params {
 		req[k] = v
 	}
-	body, err := json.Marshal(req)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(req); err != nil {
 		return nil, err
 	}
-	if err := c.t.SendLine(string(body)); err != nil {
+	if err := c.t.SendLine(strings.TrimRight(buf.String(), "\n")); err != nil {
 		return nil, err
 	}
 	deadline := time.Now().Add(timeout)
@@ -109,6 +112,9 @@ func (c *DeviceClient) GetLog(offset, limit int) (map[string]any, error) {
 func (c *DeviceClient) ClearLog() (map[string]any, error) { return c.Request("clear_log", clearTimeout, nil) }
 func (c *DeviceClient) SetInterval(seconds int) (map[string]any, error) {
 	return c.Request("set_interval", defaultTimeout, map[string]any{"interval_s": seconds})
+}
+func (c *DeviceClient) SetWifi(ssid, password string) (map[string]any, error) {
+	return c.Request("set_wifi", defaultTimeout, map[string]any{"ssid": ssid, "password": password})
 }
 
 // FetchLog reads every record from offset to the end, advancing by PageLimit per request
