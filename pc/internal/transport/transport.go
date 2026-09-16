@@ -60,6 +60,7 @@ func (t *SerialTransport) Open() error {
 	_ = p.ResetInputBuffer()
 	t.port = p
 	t.buf = t.buf[:0]
+	t.pendingErr = nil
 	return nil
 }
 

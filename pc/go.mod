@@ -1,6 +1,6 @@
 module bme280-tool
 
-go 1.25.11
+go 1.25.0
 
 require go.bug.st/serial v1.8.0
 
