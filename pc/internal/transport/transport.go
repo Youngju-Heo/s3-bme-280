@@ -15,7 +15,10 @@ type Transport interface {
 	Open() error
 	Close() error
 	SendLine(line string) error
-	ReadLine() (string, error) // next line without terminator; ("", nil) on read timeout
+	// ReadLine returns the next line without its terminator; ("", nil) on read timeout.
+	// Bytes already buffered are always drained (returned as lines) before a read error is
+	// reported, so a read error only surfaces once no complete line remains.
+	ReadLine() (string, error)
 }
 
 // rawPort is the part of serial.Port the line reader needs.
@@ -24,10 +27,11 @@ type rawPort interface {
 }
 
 type SerialTransport struct {
-	name    string
-	timeout time.Duration
-	port    rawPort
-	buf     []byte
+	name       string
+	timeout    time.Duration
+	port       rawPort
+	buf        []byte
+	pendingErr error // a read error held back until buffered lines are drained
 }
 
 func NewSerial(name string, timeout time.Duration) *SerialTransport {
@@ -80,14 +84,22 @@ func (t *SerialTransport) ReadLine() (string, error) {
 			t.buf = append(t.buf[:0], t.buf[i+1:]...)
 			return line, nil
 		}
+		if t.pendingErr != nil {
+			err := t.pendingErr
+			t.pendingErr = nil
+			return "", err
+		}
 		chunk := make([]byte, 4096)
 		n, err := t.port.Read(chunk)
+		if n > 0 { // io.Reader contract: bytes returned alongside an error are still valid
+			t.buf = append(t.buf, chunk[:n]...)
+		}
 		if err != nil {
-			return "", err
+			t.pendingErr = err
+			continue // serve any line now complete in buf before reporting the error
 		}
 		if n == 0 { // read timeout; keep any partial line for the next call
 			return "", nil
 		}
-		t.buf = append(t.buf, chunk[:n]...)
 	}
 }

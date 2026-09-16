@@ -2,13 +2,15 @@ package transport
 
 import (
 	"bytes"
+	"io"
 	"testing"
 )
 
 // fakePort feeds scripted chunks to the line reader; an exhausted script acts like a read timeout.
 type fakePort struct {
-	reads   [][]byte
-	written bytes.Buffer
+	reads    [][]byte
+	errAfter error // returned together with the final scripted chunk, per io.Reader's contract
+	written  bytes.Buffer
 }
 
 func (p *fakePort) Read(b []byte) (int, error) {
@@ -17,6 +19,11 @@ func (p *fakePort) Read(b []byte) (int, error) {
 	}
 	n := copy(b, p.reads[0])
 	p.reads = p.reads[1:]
+	if len(p.reads) == 0 && p.errAfter != nil {
+		err := p.errAfter
+		p.errAfter = nil
+		return n, err
+	}
 	return n, nil
 }
 func (p *fakePort) Write(b []byte) (int, error) { return p.written.Write(b) }
@@ -49,6 +56,21 @@ func TestReadLineKeepsPartialLineUntilTerminator(t *testing.T) {
 	port.reads = [][]byte{[]byte(" done\n")}
 	if line, _ := tr.ReadLine(); line != "partial done" {
 		t.Fatalf("got %q", line)
+	}
+}
+
+func TestReadLineKeepsBytesReturnedWithError(t *testing.T) {
+	// io.Reader contract: bytes returned alongside a non-nil error must still be processed.
+	port := &fakePort{reads: [][]byte{[]byte("tail\n")}, errAfter: io.ErrUnexpectedEOF}
+	tr := newWithPort(port)
+
+	line, err := tr.ReadLine()
+	if err != nil || line != "tail" {
+		t.Fatalf("first call = %q, %v; want %q, nil", line, err, "tail")
+	}
+	line, err = tr.ReadLine()
+	if err != io.ErrUnexpectedEOF || line != "" {
+		t.Fatalf("second call = %q, %v; want \"\", %v", line, err, io.ErrUnexpectedEOF)
 	}
 }
 
