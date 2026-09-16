@@ -37,6 +37,13 @@ def test_now_prints_reading(capsys):
     assert "온도" in out and "23.45" in out
     assert "습도" in out and "41.20" in out
     assert "기압" in out and "1013.25" in out
+    assert "고도: 0.0 m" in out
+
+
+def test_now_uses_sea_level_option(capsys):
+    factory, _ = make_factory(['{"ok":true,"temp_c":23.45,"hum_pct":41.20,"pressure_pa":101325}'])
+    main(["--port", "COM9", "--sea-level", "1023.25", "now"], client_factory=factory)
+    assert "고도: 82.8 m" in capsys.readouterr().out
 
 
 def test_status_prints_fields(capsys):
@@ -54,6 +61,7 @@ def test_log_table_newest_first(capsys):
     factory, _ = make_factory([json.dumps({"ok": True, "total": 3, "offset": 0, "records": records})])
     main(["--port", "COM9", "log"], client_factory=factory)
     lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    assert "고도(m)" in lines[0]
     assert "20.02" in lines[1]   # newest (index 2) first, after header line
     assert "20.00" in lines[3]
 
@@ -82,7 +90,7 @@ def test_log_csv_writes_file(tmp_path, capsys):
     out = tmp_path / "out.csv"
     main(["--port", "COM9", "log", "--csv", str(out)], client_factory=factory)
     text = out.read_text(encoding="utf-8").splitlines()
-    assert text[0] == "timestamp,temp_c,hum_pct,pressure_pa,time_valid,boot_id"
+    assert text[0] == "timestamp,temp_c,hum_pct,pressure_pa,altitude_m,time_valid,boot_id"
     assert len(text) == 3
     assert "2건" in capsys.readouterr().out
 

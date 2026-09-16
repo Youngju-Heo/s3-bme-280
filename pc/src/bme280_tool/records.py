@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 
 FLAG_TIME_VALID = 0x01
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
-CSV_HEADER = ["timestamp", "temp_c", "hum_pct", "pressure_pa", "time_valid", "boot_id"]
+DEFAULT_SEA_LEVEL_HPA = 1013.25
+CSV_HEADER = ["timestamp", "temp_c", "hum_pct", "pressure_pa", "altitude_m", "time_valid", "boot_id"]
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,13 @@ def format_time(rec: LogRecord, sync: SyncInfo) -> str:
     return prefix + dt.strftime(TIME_FMT)
 
 
-def csv_row(rec: LogRecord, sync: SyncInfo) -> list[str]:
+def altitude_m(pressure_pa: int, sea_level_hpa: float = DEFAULT_SEA_LEVEL_HPA) -> float:
+    """Barometric altitude (ISA formula); accurate only with the day's actual sea-level pressure."""
+    return 44330.0 * (1.0 - (pressure_pa / (sea_level_hpa * 100.0)) ** (1.0 / 5.255))
+
+
+def csv_row(rec: LogRecord, sync: SyncInfo, sea_level_hpa: float = DEFAULT_SEA_LEVEL_HPA) -> list[str]:
     dt = resolve_time(rec, sync)
     when = dt.isoformat() if dt is not None else _relative_label(rec)
-    return [when, f"{rec.temp_c:.2f}", f"{rec.hum_pct:.2f}", str(rec.pressure_pa), "1" if rec.time_valid else "0", str(rec.boot_id)]
+    return [when, f"{rec.temp_c:.2f}", f"{rec.hum_pct:.2f}", str(rec.pressure_pa),
+            f"{altitude_m(rec.pressure_pa, sea_level_hpa):.1f}", "1" if rec.time_valid else "0", str(rec.boot_id)]

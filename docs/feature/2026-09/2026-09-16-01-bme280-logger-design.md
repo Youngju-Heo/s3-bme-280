@@ -111,7 +111,7 @@ docs/feature/2026-09/
 ## PC CLI
 
 ```
-bme280-tool [--port COM9] <command>
+bme280-tool [--port COM9] [--sea-level HPA] <command>
   status                             장치 상태
   now                                즉시 측정값
   log [--last N] [--since ISO8601] [--csv PATH]
@@ -121,6 +121,7 @@ bme280-tool [--port COM9] <command>
 ```
 
 - 접속 직후 항상 `set_time` 전송(동기화).
+- 고도는 PC에서 기압으로 계산(ISA 공식, `--sea-level` 기본 1013.25 hPa). 펌웨어·레코드 형식은 관여하지 않음.
 - 미동기 레코드 표시: 응답의 `boot_id`가 현재 세대와 같으면 `PC 현재시각 - (uptime_s - timestamp)`로 환산하고 `~` 접두. 다른 세대면 `boot#N +HH:MM:SS`.
 - 모듈: `transport.py`(pyserial 래핑, 줄 송수신, 타임아웃) / `client.py`(명령 → dict, 오류 → `DeviceError`) / `records.py`(레코드 디코딩·시간 환산) / `cli.py`(argparse, 표·CSV 출력).
 - 사용자 노출 메시지는 한국어, 로그·예외 메시지는 영어.
