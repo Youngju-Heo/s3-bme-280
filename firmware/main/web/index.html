@@ -175,8 +175,8 @@
     ctx.stroke();
   }
 
-  document.querySelectorAll('.range button').forEach(b => b.onclick = () => {
-    document.querySelectorAll('.range button').forEach(o => o.classList.remove('active'));
+  document.querySelectorAll('.range button[data-hours]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.range button[data-hours]').forEach(o => o.classList.remove('active'));
     b.classList.add('active');
     rangeHours = Number(b.dataset.hours);
     loadChart();
