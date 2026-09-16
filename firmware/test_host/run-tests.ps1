@@ -19,6 +19,9 @@ $tests = [ordered]@{
     "test-json-mini" = @("$PSScriptRoot\test-json-mini.c", "$root\main\json-mini.c")
     "test-protocol" = @("$PSScriptRoot\test-protocol.c", "$root\main\protocol.c", "$root\main\json-mini.c",
                         "$root\components\log_store\log-record.c", "$root\components\log_store\log-store.c")
+    "test-sampler" = @("$PSScriptRoot\test-sampler.c", "$root\main\sampler.c",
+                       "$root\components\bme280\bme280-compensate.c", "$root\components\bme280\bme280.c",
+                       "$root\components\log_store\log-record.c", "$root\components\log_store\log-store.c")
 }
 
 $failed = 0
