@@ -48,6 +48,19 @@ void test_key_must_be_quoted_exactly(void) {
     TEST_ASSERT_FALSE(json_mini_get_uint("{\"my_offset\":7}", "offset", &v));
 }
 
+void test_key_inside_earlier_value_is_skipped(void) {
+    uint32_t v = 0;
+    TEST_ASSERT_TRUE(json_mini_get_uint("{\"cmd\":\"offset\",\"offset\":42}", "offset", &v));
+    TEST_ASSERT_EQUAL_UINT32(42, v);
+}
+
+void test_get_uint_rejects_overflow(void) {
+    uint32_t v = 0;
+    TEST_ASSERT_FALSE(json_mini_get_uint("{\"offset\":99999999999999}", "offset", &v));
+    TEST_ASSERT_TRUE(json_mini_get_uint("{\"offset\":4294967295}", "offset", &v));
+    TEST_ASSERT_EQUAL_UINT32(4294967295u, v);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_get_string);
@@ -57,5 +70,7 @@ int main(void) {
     RUN_TEST(test_get_uint);
     RUN_TEST(test_get_uint_missing_or_not_number);
     RUN_TEST(test_key_must_be_quoted_exactly);
+    RUN_TEST(test_key_inside_earlier_value_is_skipped);
+    RUN_TEST(test_get_uint_rejects_overflow);
     return UNITY_END();
 }
