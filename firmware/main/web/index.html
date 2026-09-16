@@ -15,6 +15,7 @@
   .range button { margin-right: 6px; padding: 6px 12px; }
   .range button.active { background: #333; color: #fff; }
   canvas { width: 100%; height: 160px; background: #fff; border-radius: 8px; display: block; margin: 8px 0; }
+  #btn-settings { margin-top: 12px; padding: 6px 12px; }
   #timebox { background: #fff7e0; border: 1px solid #e8c866; border-radius: 8px; padding: 12px; margin-top: 12px; }
   #timebox input, #timebox button { padding: 6px 10px; margin: 4px 4px 4px 0; }
   .hidden { display: none; }
@@ -30,8 +31,9 @@
 </div>
 <div class="status" id="status">상태를 불러오는 중…</div>
 
+<button id="btn-settings">시간 설정</button>
 <div id="timebox" class="hidden">
-  <div>장치 시각이 NTP로 동기화되지 않았습니다. 수동으로 설정할 수 있습니다.</div>
+  <div id="time-note">장치 시각을 수동으로 설정합니다.</div>
   <button id="btn-browser-time">이 컴퓨터 시각으로 설정</button>
   <div>
     <input type="datetime-local" id="manual-time" step="1">
@@ -87,7 +89,9 @@
         '저장 레코드 ' + s.count + ' / ' + s.capacity + ' · 측정 주기 ' + s.interval_s + '초 · ' +
         '센서 ' + (s.sensor_ok ? '정상' : '오류') + ' · 저장소 ' + (s.store_ok ? '정상' : '오류') + '<br>' +
         '시간 출처 ' + src + ' · WiFi ' + wifi + (s.ip ? ' (' + s.ip + ')' : '') + ' · 부팅 #' + s.boot_id + ' · 가동 ' + hms(s.uptime_s);
-      document.getElementById('timebox').classList.toggle('hidden', s.time_source === 'ntp');
+      document.getElementById('time-note').textContent = s.time_source === 'ntp'
+        ? '장치 시각이 NTP로 동기화되어 있습니다. NTP 동기화 중에는 수동 설정이 무시됩니다.'
+        : '장치 시각이 NTP로 동기화되지 않았습니다. 수동으로 설정할 수 있습니다.';
     } catch (e) {
       document.getElementById('status').textContent = '상태 조회 실패: ' + e.message;
     }
@@ -104,6 +108,7 @@
       msg.textContent = '시간 설정 실패: ' + e.message;
     }
   }
+  document.getElementById('btn-settings').onclick = () => document.getElementById('timebox').classList.toggle('hidden');
   document.getElementById('btn-browser-time').onclick = () => setTime(Math.floor(Date.now() / 1000));
   document.getElementById('btn-manual-time').onclick = () => {
     const v = document.getElementById('manual-time').value;
