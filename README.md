@@ -37,19 +37,21 @@ idf.py -p COM9 flash
 powershell -File firmware\test_host\run-tests.ps1
 ```
 
-## PC 도구
+## PC 도구 (Go)
 
 ```powershell
 cd pc
-pip install -e ".[dev]"
-pytest -q
+go build -o bme280-tool.exe ./cmd/bme280-tool
+go test ./...
 
-bme280-tool [--port COM9] status
-bme280-tool now
-bme280-tool log [--last N] [--since 2026-09-16T14:00] [--csv out.csv]
-bme280-tool clear [--yes]
-bme280-tool interval [SECONDS]
+.\bme280-tool.exe [--port COM9] status
+.\bme280-tool.exe now
+.\bme280-tool.exe log [--last N] [--since 2026-09-16T14:00] [--csv out.csv]
+.\bme280-tool.exe clear [--yes]
+.\bme280-tool.exe interval [SECONDS]
 ```
+
+의존성은 `go.bug.st/serial` 하나다. 실행 파일 하나로 배포되며 Python이 필요 없다.
 
 시간은 CLI 접속 시마다 PC 시각으로 동기화된다. 동기화 전에 저장된 레코드는 같은 부팅 세대면 `~` 접두로 추정 시각을, 다른 세대면 `boot#N +HH:MM:SS`로 표시한다.
 

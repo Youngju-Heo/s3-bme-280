@@ -2,9 +2,4 @@ firmware/build/
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/test_host/build/
-pc/build/
-pc/*.egg-info/
-pc/src/*.egg-info/
-__pycache__/
-.pytest_cache/
-*.pyc
+pc/bme280-tool.exe

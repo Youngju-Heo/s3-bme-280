@@ -203,4 +203,4 @@ pyserial 한 줄 예:
 s.write(b'{"cmd":"read_now"}\n'); print(s.readline().decode())
 ```
 
-참조 구현: [pc/src/bme280_tool/client.py](../pc/src/bme280_tool/client.py) (요청/응답·페이지네이션), [pc/src/bme280_tool/records.py](../pc/src/bme280_tool/records.py) (레코드·시각 해석), [firmware/main/protocol.c](../firmware/main/protocol.c) (장치 측 처리).
+참조 구현: [pc/internal/client/client.go](../pc/internal/client/client.go) (요청/응답·페이지네이션), [pc/internal/records/records.go](../pc/internal/records/records.go) (레코드·시각 해석), [firmware/main/protocol.c](../firmware/main/protocol.c) (장치 측 처리).
