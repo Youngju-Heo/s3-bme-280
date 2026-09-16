@@ -29,7 +29,13 @@ class DeviceClient:
             try:
                 msg = json.loads(line)
             except json.JSONDecodeError:
-                continue
+                brace = line.find("{")
+                if brace == -1:
+                    continue
+                try:
+                    msg = json.loads(line[brace:])
+                except json.JSONDecodeError:
+                    continue
             if not isinstance(msg, dict) or "ok" not in msg:
                 continue
             if not msg["ok"]:

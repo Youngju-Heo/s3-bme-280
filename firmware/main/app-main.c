@@ -107,6 +107,8 @@ void app_main(void)
     cfg.tx_buffer_size = 4096;
     cfg.rx_buffer_size = 512;
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&cfg));
+    // terminate any stale boot-log fragment left in the USB FIFO so the host sees it as its own line
+    usb_write(NULL, "\n", 1);
 
     static char line[PROTOCOL_MAX_LINE];
     size_t len = 0;

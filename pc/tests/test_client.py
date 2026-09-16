@@ -25,6 +25,11 @@ def test_request_skips_non_json_noise_lines():
     assert DeviceClient(t).request("get_status")["count"] == 1
 
 
+def test_request_recovers_json_after_noise_prefix():
+    t = FakeTransport(['I (102) esp_image: segment 1: paddr=00010020 {"ok":true,"firmware":"0.1.0"}'])
+    assert DeviceClient(t).request("ping")["firmware"] == "0.1.0"
+
+
 def test_request_raises_on_error_reply():
     t = FakeTransport(['{"ok":false,"error":"unknown_cmd"}'])
     with pytest.raises(DeviceError, match="unknown_cmd"):
