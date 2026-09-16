@@ -1,4 +1,5 @@
 #include "web.h"
+#include <stdbool.h>
 #include <string.h>
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -18,9 +19,19 @@ static esp_err_t index_handler(httpd_req_t *req)
     return httpd_resp_send(req, index_html_start, index_html_end - index_html_start - 1);   // EMBED_TXTFILES appends a NUL
 }
 
-static void chunk_write(void *ctx, const char *data, size_t len)
+// httpd runs handlers sequentially in one task, so a single static response buffer is safe.
+#define RESPONSE_MAX 24576
+static char g_resp[RESPONSE_MAX];
+static size_t g_resp_len;
+static bool g_resp_overflow;
+
+static void buffer_write(void *ctx, const char *data, size_t len)
 {
-    httpd_resp_send_chunk((httpd_req_t *)ctx, data, (ssize_t)len);
+    (void)ctx;
+    if (g_resp_overflow) return;
+    if (len > RESPONSE_MAX - g_resp_len) { g_resp_overflow = true; return; }
+    memcpy(g_resp + g_resp_len, data, len);
+    g_resp_len += len;
 }
 
 static esp_err_t api_handler(httpd_req_t *req)
@@ -37,10 +48,16 @@ static esp_err_t api_handler(httpd_req_t *req)
         httpd_resp_set_status(req, "403 Forbidden");
         return httpd_resp_send(req, "{\"ok\":false,\"error\":\"forbidden\"}\n", HTTPD_RESP_USE_STRLEN);
     }
+    g_resp_len = 0;
+    g_resp_overflow = false;
     g_lock.lock(g_lock.ctx);
-    protocol_handle_line(line, chunk_write, req);
+    protocol_handle_line(line, buffer_write, NULL);
     g_lock.unlock(g_lock.ctx);
-    return httpd_resp_send_chunk(req, NULL, 0);
+    if (g_resp_overflow) {
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        return httpd_resp_send(req, "{\"ok\":false,\"error\":\"response_too_large\"}\n", HTTPD_RESP_USE_STRLEN);
+    }
+    return httpd_resp_send(req, g_resp, (ssize_t)g_resp_len);
 }
 
 esp_err_t web_start(const web_lock_t *lock)
