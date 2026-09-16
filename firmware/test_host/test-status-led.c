@@ -33,11 +33,18 @@ void test_off(void) {
     assert_rgb(status_led_color(STATUS_LED_OFF, 123), 0, 0, 0);
 }
 
+void test_wifi_connecting_blinks_blue(void) {
+    assert_rgb(status_led_color(STATUS_LED_WIFI_CONNECTING, 0), 0, 0, STATUS_LED_BRIGHTNESS);
+    assert_rgb(status_led_color(STATUS_LED_WIFI_CONNECTING, 500), 0, 0, 0);
+    assert_rgb(status_led_color(STATUS_LED_WIFI_CONNECTING, 1000), 0, 0, STATUS_LED_BRIGHTNESS);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_ok_is_dim_steady_green);
     RUN_TEST(test_error_is_dim_steady_red);
     RUN_TEST(test_no_time_blinks_green_at_half_second);
     RUN_TEST(test_off);
+    RUN_TEST(test_wifi_connecting_blinks_blue);
     return UNITY_END();
 }
