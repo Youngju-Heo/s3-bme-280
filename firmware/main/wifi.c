@@ -23,6 +23,7 @@ static bool g_want_connect;     // credentials present; reconnect on disconnect
 static int g_retries;
 static esp_timer_handle_t g_retry_timer;
 static bool g_sntp_started;
+static bool g_reconnect_now;    // the next DISCONNECTED event is self-caused; reconnect immediately instead of backing off
 
 static void on_sntp_sync(struct timeval *tv)
 {
@@ -63,8 +64,16 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
         if (g_want_connect) { g_state = WIFI_CONNECTING; esp_wifi_connect(); }
     } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
         g_ip[0] = '\0';
-        if (g_want_connect) schedule_retry();
-        else g_state = WIFI_OFF;
+        if (!g_want_connect) {
+            g_state = WIFI_OFF;
+        } else if (g_reconnect_now) {
+            g_reconnect_now = false;
+            g_retries = 0;
+            g_state = WIFI_CONNECTING;
+            esp_wifi_connect();
+        } else {
+            schedule_retry();
+        }
     }
 }
 
@@ -117,16 +126,22 @@ esp_err_t wifi_init(void)
     g_state = WIFI_CONNECTING;
     err = esp_wifi_start();
     g_started = err == ESP_OK;
+    if (err != ESP_OK) {
+        g_state = WIFI_OFF;
+        g_want_connect = false;
+    }
     return err;
 }
 
 esp_err_t wifi_set_credentials(const char *ssid, const char *password)
 {
+    bool was_connected = g_state == WIFI_CONNECTED;
     esp_err_t err = settings_set_wifi_credentials(ssid, password);
     if (err != ESP_OK) return err;
 
     if (ssid[0] == '\0') {
         g_want_connect = false;
+        g_reconnect_now = false;
         g_retries = 0;
         esp_timer_stop(g_retry_timer);
         if (g_started) { esp_wifi_disconnect(); esp_wifi_stop(); g_started = false; }
@@ -135,9 +150,7 @@ esp_err_t wifi_set_credentials(const char *ssid, const char *password)
         return ESP_OK;
     }
 
-    g_want_connect = false;                 // suppress the reconnect scheduled by the disconnect below
     esp_timer_stop(g_retry_timer);
-    if (g_started) esp_wifi_disconnect();
     err = apply_config(ssid, password);
     if (err != ESP_OK) return err;
     g_retries = 0;
@@ -147,6 +160,10 @@ esp_err_t wifi_set_credentials(const char *ssid, const char *password)
         err = esp_wifi_start();             // STA_START event triggers esp_wifi_connect()
         g_started = err == ESP_OK;
         return err;
+    }
+    if (was_connected) {
+        g_reconnect_now = true;
+        return esp_wifi_disconnect();
     }
     return esp_wifi_connect();
 }
