@@ -212,3 +212,19 @@ func TestUnknownCommandExits2(t *testing.T) {
 		t.Fatalf("code %d", code)
 	}
 }
+
+func TestLogSinceInvalidExits2(t *testing.T) {
+	factory, _ := factoryWith(t, logPage(0, 0, nil))
+	code, _, e := run(t, factory, "", "--port", "COM9", "log", "--since", "not-a-date")
+	if code != 2 || !strings.Contains(e, "오류:") {
+		t.Fatalf("code %d stderr %q", code, e)
+	}
+}
+
+func TestIntervalNonNumericExits2(t *testing.T) {
+	factory, _ := factoryWith(t)
+	code, _, _ := run(t, factory, "", "--port", "COM9", "interval", "abc")
+	if code != 2 {
+		t.Fatalf("code %d", code)
+	}
+}

@@ -87,6 +87,10 @@ func Run(args []string, stdout, stderr io.Writer, stdin io.Reader, factory Facto
 	}
 	code, err := handler(&session{client: c, sync: sync, stdout: stdout, stdin: stdin}, rest[1:])
 	if err != nil {
+		if code == 2 {
+			fmt.Fprintf(stderr, "오류: %v\n", err)
+			return 2
+		}
 		return reportError(stderr, err)
 	}
 	return code
