@@ -4,9 +4,16 @@ package main
 
 import "syscall"
 
-// enableUTF8Console switches the console output code page to UTF-8 so Korean text renders
-// on a default cp949 console.
-func enableUTF8Console() {
-	proc := syscall.NewLazyDLL("kernel32.dll").NewProc("SetConsoleOutputCP")
-	_, _, _ = proc.Call(65001)
+// enableUTF8Console switches the console output code page to UTF-8 so multi-byte text renders
+// correctly on a default cp949 console. The returned closure restores the previous code page.
+func enableUTF8Console() func() {
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	getConsoleOutputCP := kernel32.NewProc("GetConsoleOutputCP")
+	setConsoleOutputCP := kernel32.NewProc("SetConsoleOutputCP")
+
+	previous, _, _ := getConsoleOutputCP.Call()
+	_, _, _ = setConsoleOutputCP.Call(65001)
+	return func() {
+		_, _, _ = setConsoleOutputCP.Call(previous)
+	}
 }

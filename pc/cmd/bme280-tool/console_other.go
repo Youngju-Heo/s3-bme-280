@@ -2,4 +2,4 @@
 
 package main
 
-func enableUTF8Console() {}
+func enableUTF8Console() func() { return func() {} }
