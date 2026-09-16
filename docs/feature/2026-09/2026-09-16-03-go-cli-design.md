@@ -74,8 +74,8 @@ func CSVRow(r LogRecord, s SyncInfo) []string       // 시각은 RFC3339 대신 
 - 전역 플래그 `--port`(기본 `COM9`), 서브커맨드 `status | now | log [--last N] [--since ISO8601] [--csv PATH] | clear [--yes] | interval [SECONDS]`. 각 서브커맨드는 `flag.NewFlagSet`.
 - 접속: `Ping` → `SetTime(now)` → `SyncInfo{boot_id, uptime_s, time.Now()}`.
 - 출력 문자열은 영어다(콘솔 도구 규칙; UI가 아니므로 한국어 대상이 아님). 표 헤더/폭: `Time`(22칸 좌) `Temp(°C)`(10 우) `Hum(%)`(10 우) `Press(hPa)`(12 우). 최신순.
-- 오류: `DeviceError` → stderr `오류: 장치 응답 실패 (<code>)` 종료 1; 포트 열기 실패 → `오류: 포트를 열 수 없습니다 (<err>)` 종료 1.
-- Windows 콘솔 한글: `main.go`에서 `SetConsoleOutputCP(65001)` 호출(`golang.org/x/sys` 없이 `syscall.NewLazyDLL("kernel32")`).
+- 오류: `DeviceError` → stderr `Error: device request failed (<code>)` 종료 1; 포트 열기 실패 → `Error: cannot open port (<err>)` 종료 1; 인자 오류 → `Error: <detail>` 종료 2 (포트를 열기 전에 검증). `-h` → 사용법 출력, 종료 0.
+- Windows 콘솔: `main.go`에서 `SetConsoleOutputCP(65001)`로 UTF-8(°C 등) 출력을 보장하고 종료 전에 원래 코드페이지로 복원(`golang.org/x/sys` 없이 `syscall.NewLazyDLL("kernel32")`).
 
 ## 테스트
 
