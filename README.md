@@ -8,10 +8,10 @@ Waveshare ESP32-S3-Zero + BME280(SPI) 환경 로거. 장치가 주기적으로 �
 |---|---|
 | VCC | 3V3 |
 | GND | GND |
-| SCL | GPIO3 |
-| SDA | GPIO4 |
-| CSB | GPIO5 |
-| SDO | GPIO6 |
+| SCL | GPIO12 |
+| SDA | GPIO11 |
+| CSB | GPIO10 |
+| SDO | GPIO13 |
 
 ## 펌웨어 (ESP-IDF v6.0.1)
 

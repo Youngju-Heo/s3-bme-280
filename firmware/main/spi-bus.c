@@ -4,11 +4,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#define SPI_PIN_SCK 3
-#define SPI_PIN_MOSI 4
-#define SPI_PIN_CS 5
-#define SPI_PIN_MISO 6
-#define SPI_CLOCK_HZ 1000000
+#define SPI_PIN_SCK 12
+#define SPI_PIN_MOSI 11
+#define SPI_PIN_CS 10
+#define SPI_PIN_MISO 13
+#define SPI_CLOCK_HZ 10000000   // BME280 maximum; IO_MUX pins allow up to 80 MHz
 
 static spi_device_handle_t g_dev;
 
