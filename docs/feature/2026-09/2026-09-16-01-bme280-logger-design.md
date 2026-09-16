@@ -103,7 +103,7 @@ docs/feature/2026-09/
 | `{"cmd":"get_log","offset":0,"limit":500}` | `{"ok":true,"total":1234,"offset":0,"records":[[timestamp,temp_centi,hum_centi,pressure_pa,flags,boot_id],...]}` |
 | `{"cmd":"clear_log"}` | `{"ok":true}` |
 | `{"cmd":"set_interval","interval_s":60}` | `{"ok":true}` (10~3600 범위 밖이면 오류) |
-| 오류 | `{"ok":false,"error":"unknown_cmd" | "bad_request" | "sensor_error" | "out_of_range" | "store_error"}\| "bad_request" \| "sensor_error" \| "out_of_range"}` |
+| 오류 | `{"ok":false,"error":"unknown_cmd" \| "bad_request" \| "sensor_error" \| "out_of_range" \| "store_error"}` |
 
 - `get_log`의 `offset`은 가장 오래된 레코드 = 0. `limit` 최대 500. 레코드는 배열 형태로 크기 절감.
 - PC는 JSON으로 파싱되지 않는 줄을 무시한다.
