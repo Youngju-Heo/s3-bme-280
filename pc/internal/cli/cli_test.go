@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -226,5 +227,51 @@ func TestIntervalNonNumericExits2(t *testing.T) {
 	code, _, _ := run(t, factory, "", "--port", "COM9", "interval", "abc")
 	if code != 2 {
 		t.Fatalf("code %d", code)
+	}
+}
+
+func TestUsageErrorsDoNotOpenPort(t *testing.T) {
+	cases := [][]string{
+		{"log", "--bogus"},
+		{"log", "--since", "bad"},
+		{"interval", "abc"},
+		{"status", "extra"},
+	}
+	for _, args := range cases {
+		f := transport.NewFake()
+		f.OpenErr = errors.New("must not open")
+		factory := func(port string) transport.Transport { return f }
+		full := append([]string{"--port", "COM9"}, args...)
+		if code, _, _ := run(t, factory, "", full...); code != 2 {
+			t.Fatalf("args %v: code %d", args, code)
+		}
+		if f.Opened {
+			t.Fatalf("args %v: port was opened", args)
+		}
+	}
+}
+
+func TestHelpExitsZero(t *testing.T) {
+	factory, _ := factoryWith(t)
+	code, out, _ := run(t, factory, "", "--help")
+	if code != 0 || !strings.Contains(out, "Usage:") {
+		t.Fatalf("code %d out %q", code, out)
+	}
+}
+
+func TestPortOpenFailureExits1(t *testing.T) {
+	f := transport.NewFake()
+	f.OpenErr = errors.New("boom")
+	factory := func(port string) transport.Transport { return f }
+	code, _, e := run(t, factory, "", "--port", "COM9", "status")
+	if code != 1 || !strings.Contains(e, "cannot open port") {
+		t.Fatalf("code %d stderr %q", code, e)
+	}
+}
+
+func TestDefaultPortIsCOM9(t *testing.T) {
+	factory, _ := factoryWith(t, status)
+	if code, _, e := run(t, factory, "", "status"); code != 0 {
+		t.Fatalf("code %d stderr %q", code, e)
 	}
 }

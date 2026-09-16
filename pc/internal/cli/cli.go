@@ -39,37 +39,94 @@ type session struct {
 	stdin  io.Reader
 }
 
-type command func(s *session, args []string) (int, error)
+// runner executes an already-parsed command against an open session.
+type runner func(s *session) (int, error)
 
-var commands = map[string]command{
-	"status":   cmdStatus,
-	"now":      cmdNow,
-	"log":      cmdLog,
-	"clear":    cmdClear,
-	"interval": cmdInterval,
+var errUnknownCommand = errors.New("unknown command")
+
+// prepare parses a sub-command's arguments and returns a closure that runs it. All argument
+// validation happens here, before the port is opened, so a usage error never touches the port.
+func prepare(name string, args []string) (runner, error) {
+	switch name {
+	case "status":
+		if err := parseNoArgs("status", args); err != nil {
+			return nil, err
+		}
+		return func(s *session) (int, error) { return cmdStatus(s) }, nil
+	case "now":
+		if err := parseNoArgs("now", args); err != nil {
+			return nil, err
+		}
+		return func(s *session) (int, error) { return cmdNow(s) }, nil
+	case "log":
+		p, err := parseLogArgs(args)
+		if err != nil {
+			return nil, err
+		}
+		return func(s *session) (int, error) { return cmdLog(s, p) }, nil
+	case "clear":
+		p, err := parseClearArgs(args)
+		if err != nil {
+			return nil, err
+		}
+		return func(s *session) (int, error) { return cmdClear(s, p) }, nil
+	case "interval":
+		p, err := parseIntervalArgs(args)
+		if err != nil {
+			return nil, err
+		}
+		return func(s *session) (int, error) { return cmdInterval(s, p) }, nil
+	}
+	return nil, errUnknownCommand
+}
+
+func parseNoArgs(name string, args []string) error {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected argument %q", fs.Arg(0))
+	}
+	return nil
 }
 
 // Run parses args, connects (ping + time sync) and dispatches one command. Exit codes: 0 ok,
 // 1 device/port error, 2 usage error.
 func Run(args []string, stdout, stderr io.Writer, stdin io.Reader, factory Factory) int {
 	fs := flag.NewFlagSet("bme280-tool", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Usage = func() { fmt.Fprint(stderr, usage) }
+	fs.SetOutput(io.Discard)
 	port := fs.String("port", defaultPort, "serial port")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprint(stdout, usage)
+			return 0
+		}
+		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 2
 	}
 	rest := fs.Args()
 	if len(rest) == 0 {
-		fs.Usage()
+		fmt.Fprint(stderr, usage)
 		return 2
 	}
-	handler, ok := commands[rest[0]]
-	if !ok {
-		fmt.Fprintf(stderr, "Unknown command: %s\n", rest[0])
-		fs.Usage()
+
+	handler, err := prepare(rest[0], rest[1:])
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprint(stdout, usage)
+			return 0
+		}
+		if errors.Is(err, errUnknownCommand) {
+			fmt.Fprintf(stderr, "Unknown command: %s\n", rest[0])
+			fmt.Fprint(stderr, usage)
+			return 2
+		}
+		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 2
 	}
+
 	if factory == nil {
 		factory = func(p string) transport.Transport { return transport.NewSerial(p, 1*time.Second) }
 	}
@@ -85,12 +142,8 @@ func Run(args []string, stdout, stderr io.Writer, stdin io.Reader, factory Facto
 	if err != nil {
 		return reportError(stderr, err)
 	}
-	code, err := handler(&session{client: c, sync: sync, stdout: stdout, stdin: stdin}, rest[1:])
+	code, err := handler(&session{client: c, sync: sync, stdout: stdout, stdin: stdin})
 	if err != nil {
-		if code == 2 {
-			fmt.Fprintf(stderr, "Error: %v\n", err)
-			return 2
-		}
 		return reportError(stderr, err)
 	}
 	return code
@@ -121,7 +174,7 @@ func hms(seconds int64) string {
 	return fmt.Sprintf("%02d:%02d:%02d", seconds/3600, (seconds%3600)/60, seconds%60)
 }
 
-func cmdStatus(s *session, args []string) (int, error) {
+func cmdStatus(s *session) (int, error) {
 	st, err := s.client.GetStatus()
 	if err != nil {
 		return 1, err
@@ -142,7 +195,7 @@ func okLabel(ok bool) string {
 	return "error"
 }
 
-func cmdNow(s *session, args []string) (int, error) {
+func cmdNow(s *session) (int, error) {
 	r, err := s.client.ReadNow()
 	if err != nil {
 		return 1, err
@@ -162,23 +215,44 @@ func parseSince(s string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid --since value %q (use 2026-09-16T14:00)", s)
 }
 
-func cmdLog(s *session, args []string) (int, error) {
+type logParams struct {
+	last     int
+	since    time.Time
+	hasSince bool
+	csv      string
+}
+
+func parseLogArgs(args []string) (logParams, error) {
 	fs := flag.NewFlagSet("log", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	last := fs.Int("last", -1, "only the last N records")
 	since := fs.String("since", "", "records at or after this time (ISO 8601, e.g. 2026-09-16T14:00)")
 	csvPath := fs.String("csv", "", "write CSV to this file instead of printing a table")
 	if err := fs.Parse(args); err != nil {
-		return 2, err
+		return logParams{}, err
 	}
+	if fs.NArg() != 0 {
+		return logParams{}, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+	}
+	p := logParams{last: *last, csv: *csvPath}
+	if *since != "" {
+		t, err := parseSince(*since)
+		if err != nil {
+			return logParams{}, err
+		}
+		p.since, p.hasSince = t, true
+	}
+	return p, nil
+}
 
+func cmdLog(s *session, p logParams) (int, error) {
 	offset := 0
-	if *last >= 0 {
+	if p.last >= 0 {
 		st, err := s.client.GetStatus()
 		if err != nil {
 			return 1, err
 		}
-		if offset = int(client.Int64(st["count"])) - *last; offset < 0 {
+		if offset = int(client.Int64(st["count"])) - p.last; offset < 0 {
 			offset = 0
 		}
 	}
@@ -194,14 +268,10 @@ func cmdLog(s *session, args []string) (int, error) {
 		}
 		recs = append(recs, r)
 	}
-	if *since != "" {
-		sinceTime, err := parseSince(*since)
-		if err != nil {
-			return 2, err
-		}
+	if p.hasSince {
 		var kept []records.LogRecord
 		for _, r := range recs {
-			if t, ok := records.ResolveTime(r, s.sync); ok && !t.Before(sinceTime) {
+			if t, ok := records.ResolveTime(r, s.sync); ok && !t.Before(p.since) {
 				kept = append(kept, r)
 			}
 		}
@@ -211,8 +281,8 @@ func cmdLog(s *session, args []string) (int, error) {
 		recs[i], recs[j] = recs[j], recs[i]
 	}
 
-	if *csvPath != "" {
-		f, err := os.Create(*csvPath)
+	if p.csv != "" {
+		f, err := os.Create(p.csv)
 		if err != nil {
 			return 1, err
 		}
@@ -227,7 +297,7 @@ func cmdLog(s *session, args []string) (int, error) {
 		if err := w.Error(); err != nil {
 			return 1, err
 		}
-		fmt.Fprintf(s.stdout, "Saved %d records to %s\n", len(recs), *csvPath)
+		fmt.Fprintf(s.stdout, "Saved %d records to %s\n", len(recs), p.csv)
 		return 0, nil
 	}
 
@@ -238,14 +308,25 @@ func cmdLog(s *session, args []string) (int, error) {
 	return 0, nil
 }
 
-func cmdClear(s *session, args []string) (int, error) {
+type clearParams struct {
+	yes bool
+}
+
+func parseClearArgs(args []string) (clearParams, error) {
 	fs := flag.NewFlagSet("clear", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	yes := fs.Bool("yes", false, "delete without confirmation")
 	if err := fs.Parse(args); err != nil {
-		return 2, err
+		return clearParams{}, err
 	}
-	if !*yes {
+	if fs.NArg() != 0 {
+		return clearParams{}, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+	}
+	return clearParams{yes: *yes}, nil
+}
+
+func cmdClear(s *session, p clearParams) (int, error) {
+	if !p.yes {
 		fmt.Fprint(s.stdout, "Delete all records on the device. Continue? (y/N): ")
 		answer, _ := bufio.NewReader(s.stdin).ReadString('\n')
 		if strings.ToLower(strings.TrimSpace(answer)) != "y" {
@@ -260,8 +341,27 @@ func cmdClear(s *session, args []string) (int, error) {
 	return 0, nil
 }
 
-func cmdInterval(s *session, args []string) (int, error) {
+type intervalParams struct {
+	set     bool
+	seconds int
+}
+
+func parseIntervalArgs(args []string) (intervalParams, error) {
 	if len(args) == 0 {
+		return intervalParams{}, nil
+	}
+	if len(args) > 1 {
+		return intervalParams{}, fmt.Errorf("unexpected argument %q", args[1])
+	}
+	seconds, err := strconv.Atoi(args[0])
+	if err != nil {
+		return intervalParams{}, fmt.Errorf("invalid interval %q", args[0])
+	}
+	return intervalParams{set: true, seconds: seconds}, nil
+}
+
+func cmdInterval(s *session, p intervalParams) (int, error) {
+	if !p.set {
 		st, err := s.client.GetStatus()
 		if err != nil {
 			return 1, err
@@ -269,13 +369,9 @@ func cmdInterval(s *session, args []string) (int, error) {
 		fmt.Fprintf(s.stdout, "Interval: %ds\n", client.Int64(st["interval_s"]))
 		return 0, nil
 	}
-	seconds, err := strconv.Atoi(args[0])
-	if err != nil {
-		return 2, fmt.Errorf("invalid interval %q", args[0])
-	}
-	if _, err := s.client.SetInterval(seconds); err != nil {
+	if _, err := s.client.SetInterval(p.seconds); err != nil {
 		return 1, err
 	}
-	fmt.Fprintf(s.stdout, "Interval set to %ds\n", seconds)
+	fmt.Fprintf(s.stdout, "Interval set to %ds\n", p.seconds)
 	return 0, nil
 }

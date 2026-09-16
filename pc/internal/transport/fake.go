@@ -5,13 +5,20 @@ type Fake struct {
 	Responses []string
 	Sent      []string
 	Opened    bool
+	OpenErr   error // when set, Open returns this instead of succeeding
 }
 
 func NewFake(responses ...string) *Fake {
 	return &Fake{Responses: responses}
 }
 
-func (f *Fake) Open() error  { f.Opened = true; return nil }
+func (f *Fake) Open() error {
+	if f.OpenErr != nil {
+		return f.OpenErr
+	}
+	f.Opened = true
+	return nil
+}
 func (f *Fake) Close() error { f.Opened = false; return nil }
 
 func (f *Fake) SendLine(line string) error {
