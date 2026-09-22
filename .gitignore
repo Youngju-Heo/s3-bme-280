@@ -3,3 +3,4 @@ firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/test_host/build/
 pc/bme280-tool.exe
+.vscode/
