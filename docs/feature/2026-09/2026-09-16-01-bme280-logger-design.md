@@ -90,7 +90,7 @@ docs/feature/2026-09/
 - `sampler`: 단일 메인 루프 — `app_main`이 USB 줄 읽기(100ms 타임아웃)와 `sampler_tick`을 번갈아 호출하며, 센서·저장소는 이 루프에서만 접근하므로 태스크/뮤텍스가 없다. 주기마다 `bme280_read` → `log_record_t` 생성 → `log_store_append`. 센서 오류 시 저장 생략, 상태 플래그(`sensor_ok=false`) 갱신.
 - `protocol`: USB Serial/JTAG에서 한 줄(최대 256B) 읽어 파싱, 명령 디스패치, 한 줄 응답.
   - 요청 파싱은 자체 소형 파서(`json-mini`)로 처리: 평면 객체의 문자열/정수 값만 지원(`cmd`, `offset`, `limit`, `epoch`, `interval_s`). ESP-IDF v6.0.1에는 cJSON이 내장되어 있지 않아 외부 컴포넌트 의존을 피함. 응답은 `snprintf`로 생성.
-- `status-led`: 보드 내장 WS2812(GPIO21)를 RMT로 구동. 센서·저장소 정상이면 녹색(시간 미동기 시 0.5초 깜빡임), 오류면 빨강. 밝기 4/255. 색 결정은 순수 함수(`status-led-color.c`)로 분리해 호스트 테스트.
+- `status-led`: 보드 내장 WS2812(GPIO21)를 RMT로 구동. 센서·저장소 정상이면 녹색(시간 미동기 시 0.5초 깜빡임), 오류면 빨강. 밝기 255/255(최대). 색 결정은 순수 함수(`status-led-color.c`)로 분리해 호스트 테스트.
 - `bme280_read`는 측정마다 chip id를 확인해 선이 빠져 MISO가 뜨는 경우를 오류로 판정.
 - IDF 로그는 UART0로 라우팅(`sdkconfig.defaults`), USB 포트는 프로토콜 전용.
 

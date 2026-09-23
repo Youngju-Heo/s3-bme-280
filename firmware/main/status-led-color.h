@@ -11,7 +11,7 @@ typedef enum {
 
 typedef struct { uint8_t r, g, b; } status_led_rgb_t;
 
-#define STATUS_LED_BRIGHTNESS 4      // out of 255; dim on purpose
+#define STATUS_LED_BRIGHTNESS 255    // out of 255; full brightness
 #define STATUS_LED_BLINK_HALF_MS 500
 
 status_led_rgb_t status_led_color(status_led_state_t state, uint32_t now_ms);

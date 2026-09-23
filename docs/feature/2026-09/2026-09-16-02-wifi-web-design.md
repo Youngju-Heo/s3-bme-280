@@ -87,7 +87,7 @@ app_main 초기화 순서: settings → SPI/센서 → log_store → sampler →
 
 ### status-led 확장
 
-`STATUS_LED_WIFI_CONNECTING` = 파랑 깜빡임(밝기 4, 0.5초). app_main 우선순위: 센서/저장 오류(빨강) → WiFi 설정됐으나 `CONNECTING|FAILED`(파랑 깜빡임) → 시간 미동기(녹색 깜빡임) → 정상(녹색).
+`STATUS_LED_WIFI_CONNECTING` = 파랑 깜빡임(밝기 255, 0.5초). app_main 우선순위: 센서/저장 오류(빨강) → WiFi 설정됐으나 `CONNECTING|FAILED`(파랑 깜빡임) → 시간 미동기(녹색 깜빡임) → 정상(녹색).
 
 ### 뮤텍스
 
