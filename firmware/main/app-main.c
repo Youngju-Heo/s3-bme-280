@@ -96,13 +96,14 @@ void app_main(void)
     ESP_LOGI(TAG, "boot_id=%u interval_s=%lu", settings_boot_id(), (unsigned long)settings_interval_s());
 
     bme280_bus_t bus;
+    int sensor_rc = BME280_ERR_BUS;
     esp_err_t err = spi_bus_bme280_init(&bus);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "SPI init failed: %s", esp_err_to_name(err));
     } else {
-        int rc = bme280_init(&g_sensor, &bus);
-        if (rc == BME280_OK) g_sensor_ptr = &g_sensor;
-        else ESP_LOGE(TAG, "BME280 init failed: %d", rc);
+        sensor_rc = bme280_init(&g_sensor, &bus);
+        if (sensor_rc == BME280_OK) g_sensor_ptr = &g_sensor;
+        else ESP_LOGE(TAG, "BME280 init failed: %d", sensor_rc);
     }
 
     const esp_partition_t *part = esp_partition_find_first((esp_partition_type_t)0x40, (esp_partition_subtype_t)0x00, "bmelog");
@@ -119,7 +120,7 @@ void app_main(void)
     if (rc != 0) ESP_LOGE(TAG, "log store init failed: %d", rc);
     ESP_LOGI(TAG, "log store count=%lu", (unsigned long)log_store_count(&g_store));
 
-    sampler_init(g_sensor_ptr, &g_store, settings_interval_s());
+    sampler_init(g_sensor_ptr, &g_store, settings_interval_s(), sensor_rc);
     protocol_init(&g_ops);
 
     usb_serial_jtag_driver_config_t cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();

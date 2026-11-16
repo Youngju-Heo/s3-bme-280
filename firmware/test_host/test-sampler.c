@@ -26,7 +26,7 @@ void setUp(void)
     set_raw(519888, 415148, 30000);
     TEST_ASSERT_EQUAL(BME280_OK, bme280_init(&sensor, &fake_bus));
     TEST_ASSERT_EQUAL(0, log_store_init(&store, &fake_flash));
-    sampler_init(&sensor, &store, 60);
+    sampler_init(&sensor, &store, 60, BME280_OK);
 }
 void tearDown(void) {}
 
@@ -86,9 +86,27 @@ void test_sensor_error_skips_record_and_flags(void) {
 }
 
 void test_no_sensor(void) {
-    sampler_init(NULL, &store, 60);
+    sampler_init(NULL, &store, 60, BME280_ERR_BUS);
     sampler_tick(0, 0, false, 1);
     TEST_ASSERT_EQUAL_UINT32(0, log_store_count(&store));
+    TEST_ASSERT_FALSE(sampler_sensor_ok());
+}
+
+void test_sensor_rc_tracks_failure_and_recovery(void) {
+    TEST_ASSERT_EQUAL(BME280_OK, sampler_sensor_rc());
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0xFF;
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
+    fake_bus_regs[BME280_REG_CHIP_ID] = BME280_CHIP_ID;
+    sampler_tick(60, 60, false, 1);
+    TEST_ASSERT_EQUAL(BME280_OK, sampler_sensor_rc());
+}
+
+void test_sensor_rc_keeps_init_failure_without_sensor(void) {
+    sampler_init(NULL, &store, 60, BME280_ERR_CHIP_ID);
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
     TEST_ASSERT_FALSE(sampler_sensor_ok());
 }
 
@@ -112,6 +130,8 @@ int main(void) {
     RUN_TEST(test_set_interval_applies_from_last_sample);
     RUN_TEST(test_sensor_error_skips_record_and_flags);
     RUN_TEST(test_no_sensor);
+    RUN_TEST(test_sensor_rc_tracks_failure_and_recovery);
+    RUN_TEST(test_sensor_rc_keeps_init_failure_without_sensor);
     RUN_TEST(test_store_failure_flags_store_not_ok);
     return UNITY_END();
 }
