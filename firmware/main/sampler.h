@@ -8,7 +8,7 @@ void sampler_init(bme280_t *sensor, log_store_t *store, uint32_t interval_s, int
 void sampler_set_interval(uint32_t interval_s);
 uint32_t sampler_interval(void);
 bool sampler_sensor_ok(void);
-bool sampler_sensor_ready(void);
+bool sampler_sensor_ready(void);   // same state as sampler_sensor_ok(); named for read_now gating
 bool sampler_sensor_retrying(void);
 int sampler_sensor_rc(void);
 int sampler_sensor_chip_id(void);

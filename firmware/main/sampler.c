@@ -26,7 +26,7 @@ void sampler_init(bme280_t *sensor, log_store_t *store, uint32_t interval_s, int
 void sampler_set_interval(uint32_t interval_s) { g_interval_s = interval_s; }
 uint32_t sampler_interval(void) { return g_interval_s; }
 bool sampler_sensor_ok(void) { return g_sensor_ok; }
-bool sampler_sensor_ready(void) { return g_sensor != NULL && g_sensor_rc == BME280_OK; }
+bool sampler_sensor_ready(void) { return g_sensor_ok; }
 bool sampler_sensor_retrying(void) { return g_sensor != NULL && g_sensor_rc != BME280_OK; }
 int sampler_sensor_rc(void) { return g_sensor_rc; }
 int sampler_sensor_chip_id(void) { return g_sensor_chip_id; }
