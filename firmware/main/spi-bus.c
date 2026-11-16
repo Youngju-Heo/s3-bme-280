@@ -8,7 +8,7 @@
 #define SPI_PIN_MOSI 11
 #define SPI_PIN_CS 10
 #define SPI_PIN_MISO 13
-#define SPI_CLOCK_HZ 10000000   // BME280 maximum; IO_MUX pins allow up to 80 MHz
+#define SPI_CLOCK_HZ 1000000   // 1 MHz: margin for jumper wiring / degraded contacts (BME280 max 10 MHz)
 
 static spi_device_handle_t g_dev;
 

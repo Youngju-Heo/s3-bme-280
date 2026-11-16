@@ -5,7 +5,8 @@ typedef enum {
     STATUS_LED_OFF,
     STATUS_LED_OK,          // sensor and store healthy, time synced: steady green
     STATUS_LED_OK_NO_TIME,  // healthy but time not yet synced: blinking green
-    STATUS_LED_ERROR,       // sensor or store failure: steady red
+    STATUS_LED_ERROR,       // SPI bus init or store failure: steady red
+    STATUS_LED_ERROR_RETRYING, // sensor failing, retried every interval: blinking red
     STATUS_LED_WIFI_CONNECTING, // credentials set but not connected: blinking blue
 } status_led_state_t;
 
