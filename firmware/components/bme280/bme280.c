@@ -40,6 +40,9 @@ int bme280_read(bme280_t *dev, bme280_reading_t *out)
     dev->last_chip_id = id;
     if (id != BME280_CHIP_ID) return BME280_ERR_CHIP_ID;
 
+    // Rewrite ctrl_hum on every read: a power blip between reads resets it to 0 (humidity skipped).
+    // ctrl_hum only takes effect after a ctrl_meas write, so it must come first.
+    if (dev->bus.write_reg(dev->bus.ctx, BME280_REG_CTRL_HUM, CTRL_HUM_OSRS_X1)) return BME280_ERR_BUS;
     if (dev->bus.write_reg(dev->bus.ctx, BME280_REG_CTRL_MEAS, CTRL_MEAS_FORCED)) return BME280_ERR_BUS;
     dev->bus.delay_ms(dev->bus.ctx, MEASURE_POLL_MS);   // wait for the measurement to complete before the first status poll
 
