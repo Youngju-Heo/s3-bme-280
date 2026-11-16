@@ -51,12 +51,12 @@
 
 정상일 때는 둘 다 지금과 같다. 펌웨어가 구버전이라 필드가 없으면 지금처럼 원인 없이 표시한다.
 
-| `sensor_error` | CLI (`Sensor:` 줄, 영어) | 웹 (한국어) |
+| `sensor_error` | CLI (`Sensor:` 줄, 영어, 기존 `ok`/`error` 라벨 유지) | 웹 (한국어) |
 |---|---|---|
-| `chip_id` | `FAIL (chip_id: read 0xFF, expected 0x60)` | `센서 오류 (chip ID 0xFF, 기대값 0x60)` |
-| `bus` | `FAIL (bus)` | `센서 오류 (통신 실패)` |
-| `timeout` | `FAIL (timeout)` | `센서 오류 (측정 시간 초과)` |
-| `spi_init` | `FAIL (spi_init)` | `센서 오류 (SPI 초기화 실패)` |
+| `chip_id` | `error (chip_id: read 0xFF, expected 0x60)` | `센서 오류 (chip ID 0xFF, 기대값 0x60)` |
+| `bus` | `error (bus)` | `센서 오류 (통신 실패)` |
+| `timeout` | `error (timeout)` | `센서 오류 (측정 시간 초과)` |
+| `spi_init` | `error (spi_init)` | `센서 오류 (SPI 초기화 실패)` |
 
 ## 네이밍
 
