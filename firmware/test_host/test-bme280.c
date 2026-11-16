@@ -97,6 +97,18 @@ void test_read_fails_when_sensor_disconnected(void) {
     TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, bme280_read(&dev, &r));
 }
 
+void test_read_restores_humidity_config_after_power_blip(void) {
+    load_example_calib();
+    TEST_ASSERT_EQUAL(BME280_OK, bme280_init(&dev, &fake_bus));
+    fake_bus_regs[BME280_REG_CTRL_HUM] = 0x00;   // sensor power-reset between reads
+    fake_bus_write_count = 0;
+    bme280_reading_t r;
+    TEST_ASSERT_EQUAL(BME280_OK, bme280_read(&dev, &r));
+    TEST_ASSERT_EQUAL_HEX8(0x01, fake_bus_regs[BME280_REG_CTRL_HUM]);
+    TEST_ASSERT_EQUAL_HEX8(BME280_REG_CTRL_HUM, fake_bus_write_log[0][0]);    // ctrl_hum first
+    TEST_ASSERT_EQUAL_HEX8(BME280_REG_CTRL_MEAS, fake_bus_write_log[1][0]);   // then ctrl_meas (forced)
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_init_rejects_wrong_chip_id);
@@ -108,5 +120,6 @@ int main(void) {
     RUN_TEST(test_read_triggers_forced_mode_and_compensates);
     RUN_TEST(test_read_times_out_when_measuring_never_clears);
     RUN_TEST(test_read_fails_when_sensor_disconnected);
+    RUN_TEST(test_read_restores_humidity_config_after_power_blip);
     return UNITY_END();
 }

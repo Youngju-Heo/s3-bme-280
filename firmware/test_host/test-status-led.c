@@ -21,6 +21,13 @@ void test_error_is_dim_steady_red(void) {
     assert_rgb(status_led_color(STATUS_LED_ERROR, 700), STATUS_LED_BRIGHTNESS, 0, 0);
 }
 
+void test_error_retrying_blinks_red(void) {
+    assert_rgb(status_led_color(STATUS_LED_ERROR_RETRYING, 0), STATUS_LED_BRIGHTNESS, 0, 0);
+    assert_rgb(status_led_color(STATUS_LED_ERROR_RETRYING, 499), STATUS_LED_BRIGHTNESS, 0, 0);
+    assert_rgb(status_led_color(STATUS_LED_ERROR_RETRYING, 500), 0, 0, 0);
+    assert_rgb(status_led_color(STATUS_LED_ERROR_RETRYING, 1000), STATUS_LED_BRIGHTNESS, 0, 0);
+}
+
 void test_no_time_blinks_green_at_half_second(void) {
     assert_rgb(status_led_color(STATUS_LED_OK_NO_TIME, 0), 0, STATUS_LED_BRIGHTNESS, 0);
     assert_rgb(status_led_color(STATUS_LED_OK_NO_TIME, 499), 0, STATUS_LED_BRIGHTNESS, 0);
@@ -43,6 +50,7 @@ int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_ok_is_dim_steady_green);
     RUN_TEST(test_error_is_dim_steady_red);
+    RUN_TEST(test_error_retrying_blinks_red);
     RUN_TEST(test_no_time_blinks_green_at_half_second);
     RUN_TEST(test_off);
     RUN_TEST(test_wifi_connecting_blinks_blue);

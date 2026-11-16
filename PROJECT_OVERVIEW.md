@@ -32,7 +32,7 @@ Waveshare ESP32-S3-Zero + BME280(SPI) 환경 로거. 펌웨어(ESP-IDF, C)가 �
 | 모듈 | 역할 |
 |---|---|
 | `app-main.c` | 부팅 순서 조립(설정, SPI/센서 초기화, 로그 저장소, 샘플러, 프로토콜 ops 연결), 메인 루프 |
-| `sampler.c` | 주기 측정, 저장소 기록, 센서·저장소 상태와 센서 실패 원인(rc, chip ID) 보관 |
+| `sampler.c` | 주기 측정(실패 시 다음 주기에 재초기화 후 측정), 저장소 기록, 센서·저장소 상태와 센서 실패 원인(rc, chip ID) 보관 |
 | `protocol.c` | 줄 단위 JSON 명령 처리(`ping`, `get_status`, `read_now`, `get_log` 등). 하드웨어 접근은 `protocol_ops_t`로 주입 |
 | `json-mini.c` | 프로토콜 요청용 최소 JSON 파서 |
 | `settings.c` | NVS 설정(측정 주기, boot_id, WiFi 자격증명) |
@@ -62,7 +62,7 @@ Waveshare ESP32-S3-Zero + BME280(SPI) 환경 로거. 펌웨어(ESP-IDF, C)가 �
 
 ## 데이터 흐름
 
-1. `sampler_tick`이 주기마다 `bme280_read`를 호출한다. 성공하면 `log_store_append`로 레코드를 저장하고, 실패하면 결과 코드와 chip ID만 기록한다.
+1. `sampler_tick`이 주기마다 `bme280_read`를 호출한다. 성공하면 `log_store_append`로 레코드를 저장하고, 실패하면 결과 코드와 chip ID만 기록한 뒤 다음 주기에 `bme280_init`으로 재초기화하고 측정한다.
 2. 조회는 두 경로다. USB Serial/JTAG 위 JSON 프로토콜(`pc` CLI)과 HTTP(`/api`, 웹 페이지). 둘 다 `protocol.c`의 같은 명령 처리기를 거친다.
 3. 상태(`get_status`)는 샘플러·저장소·WiFi·시각 정보를 모아 응답하며, LED 색은 센서·저장소·동기화 상태에서 결정된다(표는 README 참조).
 

@@ -21,7 +21,6 @@
 static const char *TAG = "app";
 
 static bme280_t g_sensor;
-static bme280_t *g_sensor_ptr;
 static bool g_spi_ok;
 static log_store_t g_store;
 static SemaphoreHandle_t g_device_lock;
@@ -48,8 +47,8 @@ static void op_set_time(void *c, uint32_t epoch) { (void)c; clock_set_time(epoch
 static int op_read_now(void *c, bme280_reading_t *out)
 {
     (void)c;
-    if (g_sensor_ptr == NULL) return -1;
-    return bme280_read(g_sensor_ptr, out) == BME280_OK ? 0 : -1;
+    if (!sampler_sensor_ready()) return -1;
+    return bme280_read(&g_sensor, out) == BME280_OK ? 0 : -1;
 }
 static bool op_sensor_ok(void *c) { (void)c; return sampler_sensor_ok(); }
 static bool op_store_ok(void *c) { (void)c; return sampler_store_ok(); }
@@ -117,8 +116,7 @@ void app_main(void)
     } else {
         g_spi_ok = true;
         sensor_rc = bme280_init(&g_sensor, &bus);
-        if (sensor_rc == BME280_OK) g_sensor_ptr = &g_sensor;
-        else ESP_LOGE(TAG, "BME280 init failed: %d", sensor_rc);
+        if (sensor_rc != BME280_OK) ESP_LOGE(TAG, "BME280 init failed: %d", sensor_rc);
     }
 
     const esp_partition_t *part = esp_partition_find_first((esp_partition_type_t)0x40, (esp_partition_subtype_t)0x00, "bmelog");
@@ -135,7 +133,7 @@ void app_main(void)
     if (rc != 0) ESP_LOGE(TAG, "log store init failed: %d", rc);
     ESP_LOGI(TAG, "log store count=%lu", (unsigned long)log_store_count(&g_store));
 
-    sampler_init(g_sensor_ptr, &g_store, settings_interval_s(), sensor_rc,
+    sampler_init(g_spi_ok ? &g_sensor : NULL, &g_store, settings_interval_s(), sensor_rc,
                  g_spi_ok ? g_sensor.last_chip_id : -1);
     protocol_init(&g_ops);
 
@@ -183,8 +181,10 @@ void app_main(void)
         sampler_tick(clock_uptime_s(), clock_timestamp(), clock_time_valid(), settings_boot_id());
         device_unlock(NULL);
 
-        status_led_state_t led = STATUS_LED_ERROR;
-        if (sampler_sensor_ok() && sampler_store_ok()) {
+        status_led_state_t led;
+        if (!sampler_store_ok()) led = STATUS_LED_ERROR;
+        else if (!sampler_sensor_ok()) led = sampler_sensor_retrying() ? STATUS_LED_ERROR_RETRYING : STATUS_LED_ERROR;
+        else {
             wifi_state_t ws = wifi_state();
             if (ws == WIFI_CONNECTING || ws == WIFI_FAILED) led = STATUS_LED_WIFI_CONNECTING;
             else led = clock_time_valid() ? STATUS_LED_OK : STATUS_LED_OK_NO_TIME;
