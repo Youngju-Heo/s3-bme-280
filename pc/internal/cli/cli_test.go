@@ -336,3 +336,21 @@ func TestDefaultPortIsCOM9(t *testing.T) {
 		t.Fatalf("code %d stderr %q", code, e)
 	}
 }
+
+func TestStatusPrintsSensorFailureCause(t *testing.T) {
+	cases := []struct{ fields, want string }{
+		{`"sensor_ok":false,"sensor_error":"chip_id","sensor_chip_id":255`, "Sensor: error (chip_id: read 0xFF, expected 0x60)\n"},
+		{`"sensor_ok":false,"sensor_error":"chip_id","sensor_chip_id":0`, "Sensor: error (chip_id: read 0x00, expected 0x60)\n"},
+		{`"sensor_ok":false,"sensor_error":"spi_init","sensor_chip_id":null`, "Sensor: error (spi_init)\n"},
+		{`"sensor_ok":false,"sensor_error":"brownout","sensor_chip_id":null`, "Sensor: error (brownout)\n"},
+		{`"sensor_ok":false`, "Sensor: error\n"},
+		{`"sensor_ok":true,"sensor_error":"none","sensor_chip_id":96`, "Sensor: ok\n"},
+	}
+	for _, c := range cases {
+		factory, _ := factoryWith(t, strings.Replace(status, `"sensor_ok":true`, c.fields, 1))
+		_, out, _ := run(t, factory, "", "--port", "COM9", "status")
+		if !strings.Contains(out, c.want) {
+			t.Fatalf("fields %s: want %q in %q", c.fields, c.want, out)
+		}
+	}
+}

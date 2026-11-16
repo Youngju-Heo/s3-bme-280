@@ -188,7 +188,7 @@ func cmdStatus(s *session) (int, error) {
 	}
 	fmt.Fprintf(s.stdout, "Records: %d / %d\n", client.Int64(st["count"]), client.Int64(st["capacity"]))
 	fmt.Fprintf(s.stdout, "Interval: %ds\n", client.Int64(st["interval_s"]))
-	fmt.Fprintf(s.stdout, "Sensor: %s\n", okLabel(client.Bool(st["sensor_ok"], false)))
+	fmt.Fprintf(s.stdout, "Sensor: %s\n", sensorLabel(st))
 	fmt.Fprintf(s.stdout, "Store: %s\n", okLabel(client.Bool(st["store_ok"], true)))
 	fmt.Fprintf(s.stdout, "Time sync: %s\n", map[bool]string{true: "done", false: "pending"}[client.Bool(st["time_valid"], false)])
 	fmt.Fprintf(s.stdout, "Boot #%d, uptime %s\n", client.Int64(st["boot_id"]), hms(client.Int64(st["uptime_s"])))
@@ -211,6 +211,20 @@ func okLabel(ok bool) string {
 		return "ok"
 	}
 	return "error"
+}
+
+func sensorLabel(st map[string]any) string {
+	if client.Bool(st["sensor_ok"], false) {
+		return "ok"
+	}
+	cause, _ := st["sensor_error"].(string)
+	if cause == "" || cause == "none" {
+		return okLabel(false)
+	}
+	if cause == "chip_id" && st["sensor_chip_id"] != nil {
+		return fmt.Sprintf("error (chip_id: read 0x%02X, expected 0x60)", client.Int64(st["sensor_chip_id"]))
+	}
+	return "error (" + cause + ")"
 }
 
 func cmdNow(s *session) (int, error) {
