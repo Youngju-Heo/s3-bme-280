@@ -45,7 +45,7 @@
 
 - 부팅 시 초기화에 실패하면 그 원인이 리셋 전까지 유지된다(재시도 없음).
 - 초기화에 성공한 뒤에는 주기 측정마다 갱신된다. 성공하면 `none`, 실패하면 그 원인이다.
-- `read_now`도 드라이버를 통해 chip ID를 읽으므로 `sensor_chip_id`를 갱신할 수 있다. `sensor_error`는 초기화와 주기 측정 결과만 반영한다.
+- `sensor_error`와 `sensor_chip_id`는 항상 같은 측정(초기화 또는 주기 측정)의 결과다. `read_now`는 둘 다 반영하지 않는다.
 
 ## 표시
 
@@ -64,7 +64,8 @@
 |---|---|
 | 드라이버 필드 | `bme280_t.last_chip_id` (`int16_t`, 아직 못 읽었으면 -1). `bme280_init` 시작 시 -1로 두고, chip ID 읽기에 성공할 때마다 갱신 |
 | 샘플러 | `int sampler_sensor_rc(void)`: 마지막 초기화 또는 주기 측정의 `BME280_*` 결과 코드 |
-| 프로토콜 ops | `const char *(*sensor_error)(void *ctx)`, `int (*sensor_chip_id)(void *ctx)` (-1이면 `null` 출력) |
+| 샘플러 chip ID | `int sampler_sensor_chip_id(void)`: `sampler_sensor_rc()`와 같은 측정의 chip ID(-1이면 미독출) |
+| 프로토콜 ops | `const char *(*sensor_error)(void *ctx)`, `int (*sensor_chip_id)(void *ctx)` (-1이면 `null` 출력). 둘 다 샘플러 스냅샷을 읽는다 |
 | JSON 키 | `sensor_error`, `sensor_chip_id` |
 
 ## 빌더 재량

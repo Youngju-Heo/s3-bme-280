@@ -5,17 +5,19 @@ static log_store_t *g_store;
 static uint32_t g_interval_s;
 static bool g_sensor_ok;
 static int g_sensor_rc;
+static int g_sensor_chip_id;
 static bool g_store_ok = true;
 static bool g_has_sampled;
 static uint32_t g_last_sample_s;
 
-void sampler_init(bme280_t *sensor, log_store_t *store, uint32_t interval_s, int sensor_init_rc)
+void sampler_init(bme280_t *sensor, log_store_t *store, uint32_t interval_s, int sensor_init_rc, int sensor_init_chip_id)
 {
     g_sensor = sensor;
     g_store = store;
     g_interval_s = interval_s;
     g_sensor_ok = sensor != NULL;
     g_sensor_rc = sensor_init_rc;
+    g_sensor_chip_id = sensor_init_chip_id;
     g_store_ok = true;
     g_has_sampled = false;
     g_last_sample_s = 0;
@@ -25,6 +27,7 @@ void sampler_set_interval(uint32_t interval_s) { g_interval_s = interval_s; }
 uint32_t sampler_interval(void) { return g_interval_s; }
 bool sampler_sensor_ok(void) { return g_sensor_ok; }
 int sampler_sensor_rc(void) { return g_sensor_rc; }
+int sampler_sensor_chip_id(void) { return g_sensor_chip_id; }
 bool sampler_store_ok(void) { return g_store_ok; }
 
 static int16_t clamp_i16(int32_t v) { return v > INT16_MAX ? INT16_MAX : v < INT16_MIN ? INT16_MIN : (int16_t)v; }
@@ -40,6 +43,7 @@ void sampler_tick(uint32_t uptime_s, uint32_t timestamp, bool time_valid, uint8_
 
     bme280_reading_t r;
     g_sensor_rc = bme280_read(g_sensor, &r);
+    g_sensor_chip_id = g_sensor->last_chip_id;
     if (g_sensor_rc != BME280_OK) { g_sensor_ok = false; return; }
     g_sensor_ok = true;
 

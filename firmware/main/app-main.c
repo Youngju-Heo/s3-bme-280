@@ -64,7 +64,7 @@ static const char *op_sensor_error(void *c)
     default: return "bus";
     }
 }
-static int op_sensor_chip_id(void *c) { (void)c; return g_spi_ok ? g_sensor.last_chip_id : -1; }
+static int op_sensor_chip_id(void *c) { (void)c; return sampler_sensor_chip_id(); }
 static uint32_t op_interval_s(void *c) { (void)c; return settings_interval_s(); }
 static int op_set_interval_s(void *c, uint32_t s)
 {
@@ -135,7 +135,8 @@ void app_main(void)
     if (rc != 0) ESP_LOGE(TAG, "log store init failed: %d", rc);
     ESP_LOGI(TAG, "log store count=%lu", (unsigned long)log_store_count(&g_store));
 
-    sampler_init(g_sensor_ptr, &g_store, settings_interval_s(), sensor_rc);
+    sampler_init(g_sensor_ptr, &g_store, settings_interval_s(), sensor_rc,
+                 g_spi_ok ? g_sensor.last_chip_id : -1);
     protocol_init(&g_ops);
 
     usb_serial_jtag_driver_config_t cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
