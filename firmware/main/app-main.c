@@ -22,6 +22,7 @@ static const char *TAG = "app";
 
 static bme280_t g_sensor;
 static bme280_t *g_sensor_ptr;
+static bool g_spi_ok;
 static log_store_t g_store;
 static SemaphoreHandle_t g_device_lock;
 
@@ -52,6 +53,18 @@ static int op_read_now(void *c, bme280_reading_t *out)
 }
 static bool op_sensor_ok(void *c) { (void)c; return sampler_sensor_ok(); }
 static bool op_store_ok(void *c) { (void)c; return sampler_store_ok(); }
+static const char *op_sensor_error(void *c)
+{
+    (void)c;
+    if (!g_spi_ok) return "spi_init";
+    switch (sampler_sensor_rc()) {
+    case BME280_OK: return "none";
+    case BME280_ERR_CHIP_ID: return "chip_id";
+    case BME280_ERR_TIMEOUT: return "timeout";
+    default: return "bus";
+    }
+}
+static int op_sensor_chip_id(void *c) { (void)c; return g_spi_ok ? g_sensor.last_chip_id : -1; }
 static uint32_t op_interval_s(void *c) { (void)c; return settings_interval_s(); }
 static int op_set_interval_s(void *c, uint32_t s)
 {
@@ -72,6 +85,7 @@ static const char *op_time_source(void *c) { (void)c; return clock_time_source()
 static const protocol_ops_t g_ops = {
     .ctx = NULL, .store = &g_store, .boot_id = op_boot_id, .uptime_s = op_uptime_s, .time_valid = op_time_valid,
     .set_time = op_set_time, .read_now = op_read_now, .sensor_ok = op_sensor_ok, .store_ok = op_store_ok,
+    .sensor_error = op_sensor_error, .sensor_chip_id = op_sensor_chip_id,
     .interval_s = op_interval_s, .set_interval_s = op_set_interval_s,
     .set_wifi = op_set_wifi, .wifi_state = op_wifi_state, .wifi_ip = op_wifi_ip, .time_source = op_time_source,
 };
@@ -101,6 +115,7 @@ void app_main(void)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "SPI init failed: %s", esp_err_to_name(err));
     } else {
+        g_spi_ok = true;
         sensor_rc = bme280_init(&g_sensor, &bus);
         if (sensor_rc == BME280_OK) g_sensor_ptr = &g_sensor;
         else ESP_LOGE(TAG, "BME280 init failed: %d", sensor_rc);

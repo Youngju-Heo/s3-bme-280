@@ -11,6 +11,7 @@ static size_t out_len;
 static struct {
     uint8_t boot_id; uint32_t uptime_s; bool time_valid; uint32_t set_epoch;
     int read_rc; bme280_reading_t reading; bool sensor_ok; bool store_ok; uint32_t interval_s;
+    const char *sensor_error; int sensor_chip_id;
     char wifi_ssid[33]; char wifi_pass[64]; int set_wifi_rc; const char *wifi_state; const char *wifi_ip; const char *time_source;
 } fake;
 
@@ -21,6 +22,8 @@ static void f_set_time(void *c, uint32_t e) { (void)c; fake.set_epoch = e; fake.
 static int f_read_now(void *c, bme280_reading_t *r) { (void)c; *r = fake.reading; return fake.read_rc; }
 static bool f_sensor_ok(void *c) { (void)c; return fake.sensor_ok; }
 static bool f_store_ok(void *c) { (void)c; return fake.store_ok; }
+static const char *f_sensor_error(void *c) { (void)c; return fake.sensor_error; }
+static int f_sensor_chip_id(void *c) { (void)c; return fake.sensor_chip_id; }
 static uint32_t f_interval_s(void *c) { (void)c; return fake.interval_s; }
 static int f_set_interval_s(void *c, uint32_t s) { (void)c; if (s < 10 || s > 3600) return -1; fake.interval_s = s; return 0; }
 static int f_set_wifi(void *c, const char *ssid, const char *password)
@@ -36,6 +39,7 @@ static const char *f_time_source(void *c) { (void)c; return fake.time_source; }
 static const protocol_ops_t ops = {
     .ctx = NULL, .store = &store, .boot_id = f_boot_id, .uptime_s = f_uptime_s, .time_valid = f_time_valid,
     .set_time = f_set_time, .read_now = f_read_now, .sensor_ok = f_sensor_ok, .store_ok = f_store_ok,
+    .sensor_error = f_sensor_error, .sensor_chip_id = f_sensor_chip_id,
     .interval_s = f_interval_s, .set_interval_s = f_set_interval_s,
     .set_wifi = f_set_wifi, .wifi_state = f_wifi_state, .wifi_ip = f_wifi_ip, .time_source = f_time_source,
 };
@@ -54,6 +58,7 @@ void setUp(void)
     log_store_init(&store, &fake_flash);
     memset(&fake, 0, sizeof fake);
     fake.boot_id = 3; fake.uptime_s = 120; fake.sensor_ok = true; fake.store_ok = true; fake.interval_s = 60;
+    fake.sensor_error = "none"; fake.sensor_chip_id = 0x60;
     fake.reading = (bme280_reading_t){ .temp_centi = 2345, .pressure_pa = 101325, .hum_centi = 4120 };
     fake.wifi_state = "off"; fake.wifi_ip = ""; fake.time_source = "none";
     protocol_init(&ops);
@@ -88,8 +93,20 @@ void test_get_status(void) {
     log_record_t r = { .timestamp = 1, .boot_id = 3 };
     log_store_append(&store, &r);
     TEST_ASSERT_EQUAL_STRING(
-        "{\"ok\":true,\"count\":1,\"capacity\":32512,\"interval_s\":60,\"sensor_ok\":true,\"store_ok\":true,\"time_valid\":false,\"boot_id\":3,\"uptime_s\":120,\"wifi_state\":\"off\",\"ip\":\"\",\"time_source\":\"none\"}\n",
+        "{\"ok\":true,\"count\":1,\"capacity\":32512,\"interval_s\":60,\"sensor_ok\":true,\"store_ok\":true,\"sensor_error\":\"none\",\"sensor_chip_id\":96,\"time_valid\":false,\"boot_id\":3,\"uptime_s\":120,\"wifi_state\":\"off\",\"ip\":\"\",\"time_source\":\"none\"}\n",
         handle("{\"cmd\":\"get_status\"}"));
+}
+
+void test_get_status_reports_sensor_failure(void) {
+    fake.sensor_ok = false; fake.sensor_error = "chip_id"; fake.sensor_chip_id = 0xFF;
+    TEST_ASSERT_NOT_NULL(strstr(handle("{\"cmd\":\"get_status\"}"),
+        "\"sensor_ok\":false,\"store_ok\":true,\"sensor_error\":\"chip_id\",\"sensor_chip_id\":255,"));
+}
+
+void test_get_status_chip_id_null_when_never_read(void) {
+    fake.sensor_ok = false; fake.sensor_error = "spi_init"; fake.sensor_chip_id = -1;
+    TEST_ASSERT_NOT_NULL(strstr(handle("{\"cmd\":\"get_status\"}"),
+        "\"sensor_error\":\"spi_init\",\"sensor_chip_id\":null,"));
 }
 
 void test_get_status_reports_wifi_and_time_source(void) {
@@ -187,6 +204,8 @@ int main(void) {
     RUN_TEST(test_set_time);
     RUN_TEST(test_read_now_formats_decimals);
     RUN_TEST(test_get_status);
+    RUN_TEST(test_get_status_reports_sensor_failure);
+    RUN_TEST(test_get_status_chip_id_null_when_never_read);
     RUN_TEST(test_get_status_reports_wifi_and_time_source);
     RUN_TEST(test_set_wifi_saves_credentials);
     RUN_TEST(test_set_wifi_clear_with_empty_ssid);

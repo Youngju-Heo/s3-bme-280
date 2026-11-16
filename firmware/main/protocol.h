@@ -24,6 +24,8 @@ typedef struct {
     int (*read_now)(void *ctx, bme280_reading_t *out);
     bool (*sensor_ok)(void *ctx);
     bool (*store_ok)(void *ctx);
+    const char *(*sensor_error)(void *ctx);   // "none" | "spi_init" | "bus" | "chip_id" | "timeout"
+    int (*sensor_chip_id)(void *ctx);         // 0..255, or -1 when never read (emitted as null)
     uint32_t (*interval_s)(void *ctx);
     int (*set_interval_s)(void *ctx, uint32_t s);
     int (*set_wifi)(void *ctx, const char *ssid, const char *password);   // 0 ok, -1 out of range, -2 store error

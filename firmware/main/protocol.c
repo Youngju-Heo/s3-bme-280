@@ -56,10 +56,13 @@ static void cmd_get_status(writer_t *w)
 {
     char ip[16] = "";
     g_ops->wifi_ip(g_ops->ctx, ip, sizeof ip);
-    emit(w, "{\"ok\":true,\"count\":%lu,\"capacity\":%lu,\"interval_s\":%lu,\"sensor_ok\":%s,\"store_ok\":%s,\"time_valid\":%s,\"boot_id\":%u,\"uptime_s\":%lu,",
+    char chip_id[12] = "null";
+    int cid = g_ops->sensor_chip_id(g_ops->ctx);
+    if (cid >= 0) snprintf(chip_id, sizeof chip_id, "%d", cid);
+    emit(w, "{\"ok\":true,\"count\":%lu,\"capacity\":%lu,\"interval_s\":%lu,\"sensor_ok\":%s,\"store_ok\":%s,\"sensor_error\":\"%s\",\"sensor_chip_id\":%s,\"time_valid\":%s,\"boot_id\":%u,\"uptime_s\":%lu,",
          (unsigned long)log_store_count(g_ops->store), (unsigned long)LOG_STORE_CAPACITY,
          (unsigned long)g_ops->interval_s(g_ops->ctx), g_ops->sensor_ok(g_ops->ctx) ? "true" : "false",
-         g_ops->store_ok(g_ops->ctx) ? "true" : "false",
+         g_ops->store_ok(g_ops->ctx) ? "true" : "false", g_ops->sensor_error(g_ops->ctx), chip_id,
          g_ops->time_valid(g_ops->ctx) ? "true" : "false", g_ops->boot_id(g_ops->ctx),
          (unsigned long)g_ops->uptime_s(g_ops->ctx));
     emit(w, "\"wifi_state\":\"%s\",\"ip\":\"%s\",\"time_source\":\"%s\"}\n",
