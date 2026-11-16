@@ -109,6 +109,20 @@ void test_get_status_chip_id_null_when_never_read(void) {
         "\"sensor_error\":\"spi_init\",\"sensor_chip_id\":null,"));
 }
 
+void test_get_status_worst_case_is_not_truncated(void) {
+    fake.interval_s = 3600; fake.sensor_ok = false; fake.store_ok = false;
+    fake.sensor_error = "spi_init"; fake.sensor_chip_id = -1;
+    fake.boot_id = 255; fake.uptime_s = 4294967295u; fake.time_valid = false;
+    const char *o = handle("{\"cmd\":\"get_status\"}");
+    TEST_ASSERT_NOT_NULL(strstr(o, "\"uptime_s\":4294967295,\"wifi_state\""));
+    TEST_ASSERT_NOT_NULL(strstr(o, "\"sensor_error\":\"spi_init\",\"sensor_chip_id\":null,\"time_valid\":false"));
+}
+
+void test_get_status_chip_id_zero_is_number(void) {
+    fake.sensor_ok = false; fake.sensor_error = "chip_id"; fake.sensor_chip_id = 0;
+    TEST_ASSERT_NOT_NULL(strstr(handle("{\"cmd\":\"get_status\"}"), "\"sensor_error\":\"chip_id\",\"sensor_chip_id\":0,"));
+}
+
 void test_get_status_reports_wifi_and_time_source(void) {
     fake.wifi_state = "connected"; fake.wifi_ip = "192.168.0.23"; fake.time_source = "ntp";
     const char *out = handle("{\"cmd\":\"get_status\"}");
@@ -206,6 +220,8 @@ int main(void) {
     RUN_TEST(test_get_status);
     RUN_TEST(test_get_status_reports_sensor_failure);
     RUN_TEST(test_get_status_chip_id_null_when_never_read);
+    RUN_TEST(test_get_status_worst_case_is_not_truncated);
+    RUN_TEST(test_get_status_chip_id_zero_is_number);
     RUN_TEST(test_get_status_reports_wifi_and_time_source);
     RUN_TEST(test_set_wifi_saves_credentials);
     RUN_TEST(test_set_wifi_clear_with_empty_ssid);
