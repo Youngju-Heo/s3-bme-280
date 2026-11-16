@@ -69,6 +69,15 @@
   function fmt(n, d) { return Number(n).toFixed(d); }
   function pad(n) { return String(n).padStart(2, '0'); }
   function hms(s) { return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60); }
+  function sensorText(s) {
+    if (s.sensor_ok) return '정상';
+    const e = s.sensor_error;
+    if (e === 'chip_id' && s.sensor_chip_id != null) {
+      return '오류 (chip ID 0x' + s.sensor_chip_id.toString(16).toUpperCase().padStart(2, '0') + ', 기대값 0x60)';
+    }
+    const t = { bus: '통신 실패', timeout: '측정 시간 초과', spi_init: 'SPI 초기화 실패' }[e] || e;
+    return !t || t === 'none' ? '오류' : '오류 (' + t + ')';
+  }
   function fmtTime(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
   async function refreshNow() {
@@ -89,7 +98,7 @@
       const src = { none: '없음', pc: 'PC', ntp: 'NTP' }[s.time_source] || s.time_source;
       document.getElementById('status').innerHTML =
         '저장 레코드 ' + s.count + ' / ' + s.capacity + ' · 측정 주기 ' + s.interval_s + '초 · ' +
-        '센서 ' + (s.sensor_ok ? '정상' : '오류') + ' · 저장소 ' + (s.store_ok ? '정상' : '오류') + '<br>' +
+        '센서 ' + sensorText(s) + ' · 저장소 ' + (s.store_ok ? '정상' : '오류') + '<br>' +
         '시간 출처 ' + src + ' · WiFi ' + wifi + (s.ip ? ' (' + s.ip + ')' : '') + ' · 부팅 #' + s.boot_id + ' · 가동 ' + hms(s.uptime_s);
       document.getElementById('time-note').textContent = s.time_source === 'ntp'
         ? '장치 시각이 NTP로 동기화되어 있습니다. NTP 동기화 중에는 수동 설정이 무시됩니다.'
