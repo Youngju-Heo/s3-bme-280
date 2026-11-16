@@ -11,11 +11,13 @@
 int bme280_init(bme280_t *dev, const bme280_bus_t *bus)
 {
     dev->bus = *bus;
+    dev->last_chip_id = -1;
     if (dev->bus.write_reg(dev->bus.ctx, BME280_REG_RESET, RESET_CMD)) return BME280_ERR_BUS;
     dev->bus.delay_ms(dev->bus.ctx, 5);
 
     uint8_t id = 0;
     if (dev->bus.read_regs(dev->bus.ctx, BME280_REG_CHIP_ID, &id, 1)) return BME280_ERR_BUS;
+    dev->last_chip_id = id;
     if (id != BME280_CHIP_ID) return BME280_ERR_CHIP_ID;
 
     uint8_t calib1[26], calib2[7];
@@ -35,6 +37,7 @@ int bme280_read(bme280_t *dev, bme280_reading_t *out)
     // instead of a garbage reading.
     uint8_t id = 0;
     if (dev->bus.read_regs(dev->bus.ctx, BME280_REG_CHIP_ID, &id, 1)) return BME280_ERR_BUS;
+    dev->last_chip_id = id;
     if (id != BME280_CHIP_ID) return BME280_ERR_CHIP_ID;
 
     if (dev->bus.write_reg(dev->bus.ctx, BME280_REG_CTRL_MEAS, CTRL_MEAS_FORCED)) return BME280_ERR_BUS;

@@ -28,6 +28,29 @@ void test_init_reports_bus_error(void) {
     TEST_ASSERT_EQUAL(BME280_ERR_BUS, bme280_init(&dev, &fake_bus));
 }
 
+void test_init_records_mismatched_chip_id(void) {
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0x58;
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, bme280_init(&dev, &fake_bus));
+    TEST_ASSERT_EQUAL_INT16(0x58, dev.last_chip_id);
+}
+
+void test_init_bus_error_leaves_chip_id_unread(void) {
+    dev.last_chip_id = 0x60;   // stale value from an earlier init must not survive
+    fake_bus_fail = true;
+    TEST_ASSERT_EQUAL(BME280_ERR_BUS, bme280_init(&dev, &fake_bus));
+    TEST_ASSERT_EQUAL_INT16(-1, dev.last_chip_id);
+}
+
+void test_read_records_chip_id_after_disconnect(void) {
+    load_example_calib();
+    TEST_ASSERT_EQUAL(BME280_OK, bme280_init(&dev, &fake_bus));
+    TEST_ASSERT_EQUAL_INT16(0x60, dev.last_chip_id);
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0xFF;
+    bme280_reading_t r;
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, bme280_read(&dev, &r));
+    TEST_ASSERT_EQUAL_INT16(0xFF, dev.last_chip_id);
+}
+
 void test_init_resets_reads_calib_and_configures(void) {
     load_example_calib();
     TEST_ASSERT_EQUAL(BME280_OK, bme280_init(&dev, &fake_bus));
@@ -78,6 +101,9 @@ int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_init_rejects_wrong_chip_id);
     RUN_TEST(test_init_reports_bus_error);
+    RUN_TEST(test_init_records_mismatched_chip_id);
+    RUN_TEST(test_init_bus_error_leaves_chip_id_unread);
+    RUN_TEST(test_read_records_chip_id_after_disconnect);
     RUN_TEST(test_init_resets_reads_calib_and_configures);
     RUN_TEST(test_read_triggers_forced_mode_and_compensates);
     RUN_TEST(test_read_times_out_when_measuring_never_clears);

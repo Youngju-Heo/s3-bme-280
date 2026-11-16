@@ -26,7 +26,7 @@ void setUp(void)
     set_raw(519888, 415148, 30000);
     TEST_ASSERT_EQUAL(BME280_OK, bme280_init(&sensor, &fake_bus));
     TEST_ASSERT_EQUAL(0, log_store_init(&store, &fake_flash));
-    sampler_init(&sensor, &store, 60);
+    sampler_init(&sensor, &store, 60, BME280_OK, sensor.last_chip_id);
 }
 void tearDown(void) {}
 
@@ -86,10 +86,49 @@ void test_sensor_error_skips_record_and_flags(void) {
 }
 
 void test_no_sensor(void) {
-    sampler_init(NULL, &store, 60);
+    sampler_init(NULL, &store, 60, BME280_ERR_BUS, -1);
     sampler_tick(0, 0, false, 1);
     TEST_ASSERT_EQUAL_UINT32(0, log_store_count(&store));
     TEST_ASSERT_FALSE(sampler_sensor_ok());
+}
+
+void test_sensor_rc_tracks_failure_and_recovery(void) {
+    TEST_ASSERT_EQUAL(BME280_OK, sampler_sensor_rc());
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0xFF;
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
+    fake_bus_regs[BME280_REG_CHIP_ID] = BME280_CHIP_ID;
+    sampler_tick(60, 60, false, 1);
+    TEST_ASSERT_EQUAL(BME280_OK, sampler_sensor_rc());
+}
+
+void test_sensor_rc_keeps_init_failure_without_sensor(void) {
+    sampler_init(NULL, &store, 60, BME280_ERR_CHIP_ID, -1);
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
+    TEST_ASSERT_FALSE(sampler_sensor_ok());
+}
+
+void test_sensor_chip_id_snapshots_periodic_read(void) {
+    TEST_ASSERT_EQUAL(0x60, sampler_sensor_chip_id());
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0xFF;
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_EQUAL(0xFF, sampler_sensor_chip_id());
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
+    fake_bus_regs[BME280_REG_CHIP_ID] = BME280_CHIP_ID;
+    bme280_reading_t r;
+    TEST_ASSERT_EQUAL(BME280_OK, bme280_read(&sensor, &r));
+    TEST_ASSERT_EQUAL(0xFF, sampler_sensor_chip_id());
+    sampler_tick(60, 60, false, 1);
+    TEST_ASSERT_EQUAL(0x60, sampler_sensor_chip_id());
+}
+
+void test_sensor_chip_id_keeps_init_value_without_sensor(void) {
+    sampler_init(NULL, &store, 60, BME280_ERR_CHIP_ID, 0x00);
+    TEST_ASSERT_EQUAL(0x00, sampler_sensor_chip_id());
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_EQUAL(0x00, sampler_sensor_chip_id());
 }
 
 void test_store_failure_flags_store_not_ok(void) {
@@ -112,6 +151,10 @@ int main(void) {
     RUN_TEST(test_set_interval_applies_from_last_sample);
     RUN_TEST(test_sensor_error_skips_record_and_flags);
     RUN_TEST(test_no_sensor);
+    RUN_TEST(test_sensor_rc_tracks_failure_and_recovery);
+    RUN_TEST(test_sensor_rc_keeps_init_failure_without_sensor);
+    RUN_TEST(test_sensor_chip_id_snapshots_periodic_read);
+    RUN_TEST(test_sensor_chip_id_keeps_init_value_without_sensor);
     RUN_TEST(test_store_failure_flags_store_not_ok);
     return UNITY_END();
 }

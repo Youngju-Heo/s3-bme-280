@@ -42,6 +42,7 @@ typedef struct {
 typedef struct {
     bme280_bus_t bus;
     bme280_calib_t calib;
+    int16_t last_chip_id;   // -1 until a chip id read succeeds
 } bme280_t;
 
 void bme280_parse_calib(const uint8_t calib1[26], const uint8_t calib2[7], bme280_calib_t *out);

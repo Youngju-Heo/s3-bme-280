@@ -2,7 +2,7 @@ param([string]$Name = "")
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $idf = if ($env:IDF_PATH) { $env:IDF_PATH } else { "C:\esp\v6.0.1\esp-idf" }
-$gcc = "C:\msys64\mingw64\bin\gcc.exe"
+$gcc = "C:\msys64\ucrt64\bin\gcc.exe"
 $unity = "$idf\components\unity\unity\src"
 $build = "$PSScriptRoot\build"
 New-Item -ItemType Directory -Force $build | Out-Null
