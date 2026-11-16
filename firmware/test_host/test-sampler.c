@@ -143,6 +143,58 @@ void test_store_failure_flags_store_not_ok(void) {
     TEST_ASSERT_TRUE(sampler_store_ok());
 }
 
+void test_retries_init_failed_at_boot(void) {
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0x00;
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, bme280_init(&sensor, &fake_bus));
+    sampler_init(&sensor, &store, 60, BME280_ERR_CHIP_ID, sensor.last_chip_id);
+    TEST_ASSERT_FALSE(sampler_sensor_ok());
+    TEST_ASSERT_TRUE(sampler_sensor_retrying());
+    TEST_ASSERT_FALSE(sampler_sensor_ready());
+    fake_bus_regs[BME280_REG_CHIP_ID] = BME280_CHIP_ID;   // contact restored
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_TRUE(sampler_sensor_ok());
+    TEST_ASSERT_TRUE(sampler_sensor_ready());
+    TEST_ASSERT_FALSE(sampler_sensor_retrying());
+    TEST_ASSERT_EQUAL_UINT32(1, log_store_count(&store));
+    TEST_ASSERT_EQUAL(0x60, sampler_sensor_chip_id());
+}
+
+void test_reinit_after_read_failure(void) {
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0xFF;
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
+    fake_bus_regs[BME280_REG_CHIP_ID] = BME280_CHIP_ID;
+    fake_bus_regs[BME280_REG_CTRL_HUM] = 0x00;   // sensor power blip reset its config
+    fake_bus_write_count = 0;
+    sampler_tick(60, 60, false, 1);
+    TEST_ASSERT_EQUAL_HEX8(0xB6, fake_bus_last_write(BME280_REG_RESET));
+    TEST_ASSERT_EQUAL_HEX8(0x01, fake_bus_regs[BME280_REG_CTRL_HUM]);
+    TEST_ASSERT_TRUE(sampler_sensor_ok());
+    TEST_ASSERT_EQUAL_UINT32(1, log_store_count(&store));
+}
+
+void test_repeated_init_failure_tries_once_per_interval(void) {
+    fake_bus_regs[BME280_REG_CHIP_ID] = 0x00;
+    sampler_tick(0, 0, false, 1);              // read fails
+    fake_bus_write_count = 0;
+    sampler_tick(30, 30, false, 1);            // not due: no bus traffic
+    TEST_ASSERT_EQUAL(0, fake_bus_write_count);
+    sampler_tick(60, 60, false, 1);            // due: re-init attempted, fails on chip id
+    TEST_ASSERT_EQUAL(1, fake_bus_write_count);   // only the reset write
+    TEST_ASSERT_EQUAL(BME280_ERR_CHIP_ID, sampler_sensor_rc());
+    TEST_ASSERT_EQUAL(0x00, sampler_sensor_chip_id());
+    TEST_ASSERT_FALSE(sampler_sensor_ok());
+    TEST_ASSERT_TRUE(sampler_sensor_retrying());
+    TEST_ASSERT_EQUAL_UINT32(0, log_store_count(&store));
+}
+
+void test_no_sensor_is_not_retrying(void) {
+    sampler_init(NULL, &store, 60, BME280_ERR_BUS, -1);
+    sampler_tick(0, 0, false, 1);
+    TEST_ASSERT_FALSE(sampler_sensor_retrying());
+    TEST_ASSERT_FALSE(sampler_sensor_ready());
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_first_tick_samples_immediately);
@@ -156,5 +208,9 @@ int main(void) {
     RUN_TEST(test_sensor_chip_id_snapshots_periodic_read);
     RUN_TEST(test_sensor_chip_id_keeps_init_value_without_sensor);
     RUN_TEST(test_store_failure_flags_store_not_ok);
+    RUN_TEST(test_retries_init_failed_at_boot);
+    RUN_TEST(test_reinit_after_read_failure);
+    RUN_TEST(test_repeated_init_failure_tries_once_per_interval);
+    RUN_TEST(test_no_sensor_is_not_retrying);
     return UNITY_END();
 }

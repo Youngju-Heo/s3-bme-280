@@ -15,7 +15,7 @@ void sampler_init(bme280_t *sensor, log_store_t *store, uint32_t interval_s, int
     g_sensor = sensor;
     g_store = store;
     g_interval_s = interval_s;
-    g_sensor_ok = sensor != NULL;
+    g_sensor_ok = sensor != NULL && sensor_init_rc == BME280_OK;
     g_sensor_rc = sensor_init_rc;
     g_sensor_chip_id = sensor_init_chip_id;
     g_store_ok = true;
@@ -26,6 +26,8 @@ void sampler_init(bme280_t *sensor, log_store_t *store, uint32_t interval_s, int
 void sampler_set_interval(uint32_t interval_s) { g_interval_s = interval_s; }
 uint32_t sampler_interval(void) { return g_interval_s; }
 bool sampler_sensor_ok(void) { return g_sensor_ok; }
+bool sampler_sensor_ready(void) { return g_sensor != NULL && g_sensor_rc == BME280_OK; }
+bool sampler_sensor_retrying(void) { return g_sensor != NULL && g_sensor_rc != BME280_OK; }
 int sampler_sensor_rc(void) { return g_sensor_rc; }
 int sampler_sensor_chip_id(void) { return g_sensor_chip_id; }
 bool sampler_store_ok(void) { return g_store_ok; }
@@ -40,6 +42,14 @@ void sampler_tick(uint32_t uptime_s, uint32_t timestamp, bool time_valid, uint8_
     g_last_sample_s = uptime_s;
 
     if (g_sensor == NULL) { g_sensor_ok = false; return; }
+
+    if (g_sensor_rc != BME280_OK) {
+        // Re-initialize after any failure; init overwrites dev->bus, so pass a local copy
+        bme280_bus_t bus = g_sensor->bus;
+        g_sensor_rc = bme280_init(g_sensor, &bus);
+        g_sensor_chip_id = g_sensor->last_chip_id;
+        if (g_sensor_rc != BME280_OK) { g_sensor_ok = false; return; }
+    }
 
     bme280_reading_t r;
     g_sensor_rc = bme280_read(g_sensor, &r);

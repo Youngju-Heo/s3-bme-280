@@ -96,7 +96,7 @@ s.reset_input_buffer()
 | `interval_s` | 현재 측정 주기 |
 | `sensor_ok` | 마지막 주기 측정이 성공했는지 (부팅 시 센서 초기화 실패면 항상 false) |
 | `store_ok` | 마지막 플래시 저장이 성공했는지 |
-| `sensor_error` | `sensor_ok` 상태의 원인: `none` / `spi_init` / `bus` / `chip_id` / `timeout`. `sensor_ok`가 true이면 `none`. 부팅 시 초기화 실패 원인은 리셋 전까지 유지되고, 초기화 성공 후에는 주기 측정마다 갱신된다. `read_now`는 반영하지 않는다 |
+| `sensor_error` | `sensor_ok` 상태의 원인: `none` / `spi_init` / `bus` / `chip_id` / `timeout`. `sensor_ok`가 true이면 `none`. 실패하면 다음 측정 주기에 재초기화 후 측정하며, 그 결과로 갱신된다(`spi_init`은 재시도하지 않음). `read_now`는 반영하지 않는다 |
 | `sensor_chip_id` | 센서에서 마지막으로 읽힌 chip ID(0~255). 한 번도 읽지 못했으면(`spi_init`, 또는 chip ID를 읽기 전 단계의 `bus`) `null`. `sensor_error`와 같은 측정(초기화 또는 주기 측정)에서 읽은 값이며 `read_now`는 반영하지 않는다 |
 | `wifi_state` | `off`(자격증명 없음) / `connecting` / `connected` / `failed` |
 | `ip` | 연결됐을 때의 IP 주소 문자열, 아니면 빈 문자열 |
