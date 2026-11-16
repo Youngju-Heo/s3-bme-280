@@ -1,5 +1,7 @@
 # s3-bme-280
 
+프로젝트 구조와 구성 요소는 [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)를 참조한다.
+
 Waveshare ESP32-S3-Zero + BME280(SPI) 환경 로거. 장치가 주기적으로 온도·습도·기압을 측정해 플래시에 고정 크기(32,512건) 롤링 저장하고, PC에서 USB로 조회한다.
 
 ## 배선
